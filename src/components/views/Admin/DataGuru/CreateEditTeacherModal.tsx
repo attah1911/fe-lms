@@ -80,6 +80,13 @@ const CreateEditTeacherModal: React.FC<CreateEditTeacherModalProps> = ({
               {mode === 'create' ? 'Tambah Guru Baru' : 'Edit Guru'}
             </ModalHeader>
             <ModalBody>
+              {mode === 'create' && (
+                <div className="p-2 mb-4 bg-blue-50 border border-blue-200 rounded-md">
+                  <p className="text-sm text-blue-600">
+                    <span className="font-medium">Info:</span> Akun akan otomatis dibuat dengan password default: <span className="font-semibold">Smpn37Jakartaguru</span>
+                  </p>
+                </div>
+              )}
               <form 
                 id="teacherForm" 
                 onSubmit={(e) => {

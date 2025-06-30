@@ -1,8 +1,8 @@
-import React, { useEffect, Key } from "react";
+import React, { useEffect, Key, useState } from "react";
 import { Input, Textarea, Button, Select, SelectItem } from "@nextui-org/react";
 import { MataPelajaran, TeacherOption, kategoriList, tingkatKelasList, TeacherData } from "../../../../types/MataPelajaran";
 import BaseModal from "../../../commons/Modal/BaseModal";
-import { useForm, Controller } from "react-hook-form";
+import { useForm, Controller, useWatch } from "react-hook-form";
 
 interface CreateEditMataPelajaranModalProps {
   isOpen: boolean;
@@ -28,7 +28,8 @@ const CreateEditMataPelajaranModal = ({
     handleSubmit,
     formState: { errors },
     reset,
-    setValue
+    setValue,
+    watch
   } = useForm<MataPelajaran>({
     defaultValues: {
       judul: "",
@@ -38,6 +39,31 @@ const CreateEditMataPelajaranModal = ({
       tingkatKelas: "",
     },
   });
+
+  // Watch for value changes
+  const kategori = watch('kategori');
+  const tingkatKelas = watch('tingkatKelas');
+  const guruId = watch('guru');
+  const [isAutoTitleEnabled, setIsAutoTitleEnabled] = useState(true);
+
+  // Find selected teacher name
+  const getTeacherName = (id: string | TeacherData): string => {
+    const teacherId = typeof id === 'object' ? id._id : id;
+    const teacher = teachers.find(t => t._id === teacherId);
+    return teacher ? teacher.fullName : '';
+  };
+
+  // Auto generate title when values change
+  useEffect(() => {
+    if (!isAutoTitleEnabled || mode === 'edit') return;
+    
+    // Only generate title if all required fields are filled
+    if (kategori && tingkatKelas && guruId) {
+      const teacherName = getTeacherName(guruId);
+      const titleTemplate = `${kategori} | ${tingkatKelas} | ${teacherName}`;
+      setValue('judul', titleTemplate);
+    }
+  }, [kategori, tingkatKelas, guruId, setValue, isAutoTitleEnabled, mode, teachers]);
 
   // Reset form when modal opens/closes or when initialData changes
   useEffect(() => {
@@ -53,6 +79,9 @@ const CreateEditMataPelajaranModal = ({
         const guruId = typeof initialData.guru === 'object' ? initialData.guru._id : initialData.guru;
         setValue('guru', guruId);
       }
+
+      // Disable auto title in edit mode
+      setIsAutoTitleEnabled(false);
     } else {
       reset({
         judul: "",
@@ -61,8 +90,10 @@ const CreateEditMataPelajaranModal = ({
         guru: "",
         tingkatKelas: "",
       });
+      // Enable auto title in create mode
+      setIsAutoTitleEnabled(mode === 'create');
     }
-  }, [isOpen, initialData, setValue, reset]);
+  }, [isOpen, initialData, setValue, reset, mode]);
 
   const handleFormSubmit = async (data: MataPelajaran) => {
     await onSubmit(data);
@@ -71,9 +102,8 @@ const CreateEditMataPelajaranModal = ({
 
   const modalTitle = mode === 'create' ? 'Tambah Mata Pelajaran' : 'Edit Mata Pelajaran';
 
-  // Function to format tingkat kelas for display
   const formatTingkatKelas = (kelas: string) => {
-    return kelas.replace('KELAS_', 'Kelas ');
+    return kelas;
   };
 
   const submitForm = () => {
@@ -113,6 +143,14 @@ const CreateEditMataPelajaranModal = ({
     </>
   );
 
+  // Handle manual change of title
+  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (mode === 'create' && e.target.value !== '') {
+      // If user manually edits title, disable auto-generation
+      setIsAutoTitleEnabled(false);
+    }
+  };
+
   return (
     <BaseModal
       isOpen={isOpen}
@@ -126,20 +164,47 @@ const CreateEditMataPelajaranModal = ({
         e.preventDefault();
         handleSubmit(handleFormSubmit)();
       }}>
-        <Controller
-          name="judul"
-          control={control}
-          rules={{ required: "Judul harus diisi" }}
-          render={({ field, fieldState }) => (
-            <Input
-              {...field}
-              label="Judul"
-              placeholder="Masukkan judul mata pelajaran"
-              errorMessage={fieldState.error?.message}
-              isInvalid={!!fieldState.error}
+          <div className="space-y-2">
+            <Controller
+              name="judul"
+              control={control}
+              rules={{ required: "Judul harus diisi" }}
+              render={({ field, fieldState }) => (
+                <Input
+                  {...field}
+                  label="Judul"
+                  placeholder="Masukkan judul mata pelajaran"
+                  errorMessage={fieldState.error?.message}
+                  isInvalid={!!fieldState.error}
+                  onChange={(e) => {
+                    field.onChange(e);
+                    handleTitleChange(e);
+                  }}
+                />
+              )}
             />
-          )}
-        />
+            <div className="text-sm text-gray-500 px-2">
+              Template: Mata Pelajaran | Kelas | Nama Guru
+              {mode === 'create' && (
+                <span className="ml-2">
+                  {isAutoTitleEnabled 
+                    ? '(Auto-generate aktif)' 
+                    : (
+                      <Button 
+                        size="sm" 
+                        variant="light" 
+                        color="primary" 
+                        className="ml-2 px-1 py-0 min-w-0 h-auto"
+                        onPress={() => setIsAutoTitleEnabled(true)}
+                      >
+                        Aktifkan auto-generate
+                      </Button>
+                    )
+                  }
+                </span>
+              )}
+            </div>
+          </div>
 
         <Controller
           name="kategori"
@@ -178,25 +243,10 @@ const CreateEditMataPelajaranModal = ({
             >
               {tingkatKelasList.map((kelas) => (
                 <SelectItem key={kelas} value={kelas}>
-                  {formatTingkatKelas(kelas)}
+                  {kelas}
                 </SelectItem>
               ))}
             </Select>
-          )}
-        />
-
-        <Controller
-          name="deskripsi"
-          control={control}
-          rules={{ required: "Deskripsi harus diisi" }}
-          render={({ field, fieldState }) => (
-            <Textarea
-              {...field}
-              label="Deskripsi"
-              placeholder="Masukkan deskripsi mata pelajaran"
-              errorMessage={fieldState.error?.message}
-              isInvalid={!!fieldState.error}
-            />
           )}
         />
 
@@ -223,6 +273,21 @@ const CreateEditMataPelajaranModal = ({
                 </SelectItem>
               ))}
             </Select>
+          )}
+        />
+
+        <Controller
+          name="deskripsi"
+          control={control}
+          rules={{ required: "Deskripsi harus diisi" }}
+          render={({ field, fieldState }) => (
+            <Textarea
+              {...field}
+              label="Deskripsi"
+              placeholder="Masukkan deskripsi mata pelajaran"
+              errorMessage={fieldState.error?.message}
+              isInvalid={!!fieldState.error}
+            />
           )}
         />
       </form>

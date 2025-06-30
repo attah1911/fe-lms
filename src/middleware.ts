@@ -14,39 +14,71 @@ function getDashboardUrl(role?: string): string {
     case "murid":
       return "/murid/dashboard";
     default:
-      return "/";
+      return "/auth/login";
   }
 }
 
 // Helper function to check if token is expired
 function isTokenExpired(token: JWTExtended): boolean {
   if (!token?.iat) return true;
-  
-  // Get current time in seconds
   const currentTime = Math.floor(Date.now() / 1000);
-  
-  // Calculate expiration time (12 hours after iat)
   const expirationTime = token.iat + (60 * 60 * 12); // 12 hours in seconds
-  
   return currentTime >= expirationTime;
+}
+
+// Helper function to check if token is valid
+function isValidToken(token: JWTExtended | null): token is JWTExtended & { user: NonNullable<JWTExtended['user']> } {
+  if (!token) return false;
+  if (isTokenExpired(token)) return false;
+  if (!token.user?.role) return false;
+  if (!token.user?.id) return false;
+  return true;
 }
 
 export async function middleware(request: NextRequest) {
   try {
+    // Skip middleware for API routes and auth session endpoint
+    if (request.nextUrl.pathname.startsWith('/api')) {
+      return NextResponse.next();
+    }
+
     const token: JWTExtended | null = await getToken({
       req: request,
-      secret: environment.AUTH_SECRET || 'development-secret-key-min-32-chars-long',
+      secret: environment.AUTH_SECRET,
     });
 
     const { pathname } = request.nextUrl;
 
+    // Handle root path - ALLOW ACCESS TO HOMEPAGE WITHOUT AUTH
+    if (pathname === "/") {
+      return NextResponse.next(); // Allow access to homepage without authentication
+    }
+
     // Handle auth pages (login/register)
-    if (pathname === "/auth/login" || pathname === "/auth/register") {
-      if (token?.user && !isTokenExpired(token)) {
-        // If already logged in with valid token, redirect to appropriate dashboard
-        const redirectUrl = getDashboardUrl(token.user.role);
-        return NextResponse.redirect(new URL(redirectUrl, request.url));
+    if (pathname.startsWith("/auth")) {
+      // For register page, redirect if we have a valid token
+      if (pathname === "/auth/register" && isValidToken(token)) {
+        return NextResponse.redirect(new URL(getDashboardUrl(token.user.role), request.url));
       }
+
+      // Special cases that don't require redirection
+      if (pathname === "/auth/register/success" ||
+          pathname === "/auth/activation") {
+        return NextResponse.next();
+      }
+
+      // Handle student-data page
+      if (pathname === "/auth/student-data") {
+        // Allow access to student-data page without authentication
+        // The page itself will validate the email parameter
+        return NextResponse.next();
+      }
+
+      // For login page, only redirect if we have a valid token
+      if (pathname === "/auth/login" && isValidToken(token)) {
+        return NextResponse.redirect(new URL(getDashboardUrl(token.user.role), request.url));
+      }
+
       return NextResponse.next();
     }
 
@@ -60,39 +92,47 @@ export async function middleware(request: NextRequest) {
     const isProtectedRoute = Object.values(protectedRoutes).some(Boolean);
 
     if (isProtectedRoute) {
-      // Check if token is expired or user is not authenticated
-      if (!token?.user || isTokenExpired(token)) {
+      // Check if token is valid
+      if (!isValidToken(token)) {
         const url = new URL("/auth/login", request.url);
-        url.searchParams.set("callbackUrl", encodeURI(request.url));
+        url.searchParams.set("callbackUrl", pathname);
         return NextResponse.redirect(url);
       }
 
-      // Wrong role
+      // Get the current path section (admin/guru/murid)
+      const currentSection = pathname.split('/')[1];  // This will get 'admin' from '/admin/dashboard'
       const userRole = token.user.role;
-      const allowedSection = Object.keys(protectedRoutes).find(
-        (key) => protectedRoutes[key as keyof typeof protectedRoutes]
-      );
 
-      if (userRole !== allowedSection) {
-        const redirectUrl = getDashboardUrl(userRole);
-        return NextResponse.redirect(new URL(redirectUrl, request.url));
-      }
+      // If trying to access a protected section
+      if (currentSection === 'admin' || currentSection === 'guru' || currentSection === 'murid') {
+        // If user tries to access a section they don't have access to
+        if (currentSection !== userRole) {
+          return NextResponse.redirect(new URL(getDashboardUrl(userRole), request.url));
+        }
 
-      // Handle root paths redirect
-      if (pathname === `/${userRole}`) {
-        return NextResponse.redirect(new URL(`/${userRole}/dashboard`, request.url));
+        // Handle root paths redirect (e.g., /admin -> /admin/dashboard)
+        if (pathname === `/${userRole}`) {
+          return NextResponse.redirect(new URL(`/${userRole}/dashboard`, request.url));
+        }
       }
     }
 
     return NextResponse.next();
   } catch (error) {
-    console.error('Middleware error:', error);
     // On error, redirect to login
-    const url = new URL("/auth/login", request.url);
-    return NextResponse.redirect(url);
+    return NextResponse.redirect(new URL("/auth/login", request.url));
   }
 }
 
 export const config = {
-  matcher: ["/auth/:path*", "/admin/:path*", "/guru/:path*", "/murid/:path*"],
+  matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - images (public images)
+     */
+    '/((?!_next/static|_next/image|favicon.ico|images).*)',
+  ],
 };

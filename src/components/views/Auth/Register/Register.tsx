@@ -1,19 +1,19 @@
+import React from "react";
 import {
   Button,
-  button,
   Card,
   CardBody,
   Input,
-  Spinner,
 } from "@nextui-org/react"; 
 import Image from "next/image";
 import Link from "next/link";
 import useRegister from "./useRegister";
 import { FaEye, FaEyeSlash } from "react-icons/fa6";
+import { FaArrowLeft } from "react-icons/fa6";
 import { Controller } from "react-hook-form";
 import { cn } from "../../../../utils/cn";
 
-const Register = () => {
+const Register: React.FC = () => {
   const {
     visiblePassword,
     handleVisiblePassword,
@@ -25,17 +25,24 @@ const Register = () => {
   } = useRegister();
 
   return (
-    <div className="flex w-full flex-col items-center justify-center gap-10 lg:flex-row lg:gap-40 lg:ml-10">
-      <div className="flex w-full flex-col items-center justify-center gap-10 lg:w-1/3">
+    <div className="flex w-full flex-col items-center justify-center gap-6 px-4 lg:flex-row lg:gap-20">
+      {/* Back to Home Button */}
+      <Link href="/" className="absolute top-6 left-6 flex items-center gap-2 text-blue-500 hover:text-blue-600 transition-colors">
+        <FaArrowLeft />
+        <span>Kembali ke Homepage</span>
+      </Link>
+      
+      <div className="hidden w-full max-w-[600px] items-center justify-center lg:flex">
         <Image
           src="/images/illustrations/register.svg"
           alt="register"
-          className="w-2/3 lg:w-[175%] max-w-none"
-          width={1024}
-          height={1024}
+          className="w-full"
+          width={600}
+          height={600}
+          priority
         />
       </div>
-      <Card>
+      <Card className="w-full max-w-[380px]">
         <CardBody className="p-8">
           <h2 className="text-2xl font-bold text-blue-500">
             Registrasi Akun
@@ -56,7 +63,7 @@ const Register = () => {
           )}
           <form
             className={cn(
-              "flex w-80 flex-col",
+              "flex w-full flex-col",
               Object.keys(errors).length > 0 ? "gap-2" : "gap-4",
             )}
             onSubmit={handleSubmit(handleRegister)}
@@ -64,60 +71,75 @@ const Register = () => {
             <Controller
               name="fullName"
               control={control}
-              render={({ field }) => (
+              render={({ field, fieldState }) => (
                 <Input
                   {...field}
                   type="text"
                   label="Nama Lengkap"
                   variant="bordered"
                   autoComplete="off"
-                  isInvalid={errors.fullName !== undefined}
-                  errorMessage={errors.fullName?.message}
+                  isInvalid={Boolean(fieldState.error)}
+                  errorMessage={fieldState.error?.message}
+                  description="Hanya huruf dan spasi, maksimal 50 karakter"
+                  onChange={(e) => {
+                    // Only allow letters and spaces
+                    const value = e.target.value.replace(/[^A-Za-z\s]/g, '');
+                    field.onChange(value);
+                  }}
+                  maxLength={50}
                 />
               )}
             />
             <Controller
               name="username"
               control={control}
-              render={({ field }) => (
+              render={({ field, fieldState }) => (
                 <Input
                   {...field}
                   type="text"
                   label="Username"
                   variant="bordered"
                   autoComplete="off"
-                  isInvalid={errors.username !== undefined}
-                  errorMessage={errors.username?.message}
+                  isInvalid={Boolean(fieldState.error)}
+                  errorMessage={fieldState.error?.message}
+                  description="Minimal mengandung 3 huruf, maksimal 15 karakter"
+                  onChange={(e) => {
+                    // Only allow letters and numbers
+                    const value = e.target.value.replace(/[^A-Za-z0-9]/g, '');
+                    field.onChange(value);
+                  }}
+                  maxLength={15}
                 />
               )}
             />
             <Controller
               name="email"
               control={control}
-              render={({ field }) => (
+              render={({ field, fieldState }) => (
                 <Input
                   {...field}
                   type="email"
                   label="Email"
                   variant="bordered"
                   autoComplete="off"
-                  isInvalid={errors.email !== undefined}
-                  errorMessage={errors.email?.message}
+                  isInvalid={Boolean(fieldState.error)}
+                  errorMessage={fieldState.error?.message}
                 />
               )}
             />
             <Controller
               name="password"
               control={control}
-              render={({ field }) => (
+              render={({ field, fieldState }) => (
                 <Input
                   {...field}
                   type={visiblePassword.password ? "text" : "password"}
                   label="Password"
                   variant="bordered"
                   autoComplete="off"
-                  isInvalid={errors.password !== undefined}
-                  errorMessage={errors.password?.message}
+                  isInvalid={Boolean(fieldState.error)}
+                  errorMessage={fieldState.error?.message}
+                  description="Minimal 6 karakter, harus ada huruf kapital dan angka"
                   endContent={
                     <button
                       className="focus:outline-none"
@@ -137,15 +159,15 @@ const Register = () => {
             <Controller
               name="confirmPassword"
               control={control}
-              render={({ field }) => (
+              render={({ field, fieldState }) => (
                 <Input
                   {...field}
                   type={visiblePassword.confirmPassword ? "text" : "password"}
                   label="Password Confirmation"
                   variant="bordered"
                   autoComplete="off"
-                  isInvalid={errors.confirmPassword !== undefined}
-                  errorMessage={errors.confirmPassword?.message}
+                  isInvalid={Boolean(fieldState.error)}
+                  errorMessage={fieldState.error?.message}
                   endContent={
                     <button
                       className="focus:outline-none"
@@ -163,12 +185,13 @@ const Register = () => {
               )}
             />
 
-            <Button color="primary" size="lg" type="submit">
-              {isPendingRegister ? (
-                <Spinner color="white" size="sm" />
-              ) : (
-                "Register"
-              )}
+            <Button 
+              color="primary" 
+              size="lg" 
+              type="submit"
+              isLoading={isPendingRegister}
+            >
+              Register
             </Button>
           </form>
         </CardBody>

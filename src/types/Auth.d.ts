@@ -7,7 +7,9 @@ export interface UserExtended extends DefaultUser {
   email: string;
   fullName: string;
   role: string;
+  isActive: boolean;
   accessToken?: string;
+  profilePicture?: string;
 }
 
 export interface SessionExtended extends DefaultSession {
@@ -27,15 +29,26 @@ export interface ILogin {
   password: string;
 }
 
-export interface IRegister {
+// Form data interface
+export interface IRegisterForm {
   fullName: string;
   username: string;
   email: string;
   password: string;
   confirmPassword: string;
+}
+
+// API request interface
+export interface IRegister extends IRegisterForm {
   role: string;
 }
 
 export interface IActivation {
-  code: string; // Matches the backend's auth.controller.ts expectation
+  token: string;  // Changed from 'code' to 'token' to match the email link parameter
+}
+
+export interface IStudentData {
+  nis: string;
+  kelas: string;
+  noTelp: string;
 }

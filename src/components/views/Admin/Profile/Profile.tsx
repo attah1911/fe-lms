@@ -4,7 +4,7 @@ import authServices from "../../../../services/auth.service";
 import mediaServices from "../../../../services/media.service";
 import { IProfile, IProfileUpdate } from "../../../../types/Profile";
 import { SessionExtended } from "../../../../types/Auth";
-import NotificationAlert from "@/components/commons/NotificationAlert/NotificationAlert";
+import { toast } from "sonner";
 import ProfileSidebar from "./components/ProfileSidebar";
 import ProfileDetails from "./components/ProfileDetails";
 
@@ -28,15 +28,38 @@ const Profile: React.FC = () => {
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string>("");
+  const [errors, setErrors] = useState<{
+    fullName?: string;
+    username?: string;
+    email?: string;
+    general?: string;
+  }>({});
 
   useEffect(() => {
     loadProfile();
   }, []);
 
+  // Show toast notifications when errors or success messages change
+  useEffect(() => {
+    if (errorUpload) {
+      toast.error(errorUpload);
+    }
+    if (successMessage) {
+      toast.success(successMessage);
+      // Clear success message after showing toast
+      const timer = setTimeout(() => {
+        setSuccessMessage("");
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+    if (errors.general) {
+      toast.error(errors.general);
+    }
+  }, [errorUpload, successMessage, errors]);
+
   const loadProfile = async () => {
     try {
-      const response = await authServices.getProfileWithToken(session?.accessToken || "");
+      const response = await authServices.getProfile();
       const profileData = response.data.data || response.data;
       setProfile(profileData);
       setEditableProfile({
@@ -48,7 +71,7 @@ const Profile: React.FC = () => {
       setLoading(false);
     } catch (err: any) {
       const errorMessage = err.response?.data?.message || "Gagal memuat data profil";
-      setError(errorMessage);
+      setErrors({ general: errorMessage });
       setLoading(false);
       console.error("Error loading profile:", err);
     }
@@ -84,7 +107,6 @@ const Profile: React.FC = () => {
         setProfile(prev => prev ? { ...prev, profilePicture: imageUrl } : null);
         setEditableProfile(prev => ({ ...prev, profilePicture: imageUrl }));
         setSuccessMessage("Foto profil berhasil diperbarui");
-        setTimeout(() => setSuccessMessage(""), 3000);
       }
     } catch (error: any) {
       console.error("Error uploading image:", error);
@@ -104,7 +126,8 @@ const Profile: React.FC = () => {
       });
     }
     setIsEditing(!isEditing);
-    setError("");
+    setErrors({});
+    setSuccessMessage(""); // Reset success message when toggling edit mode
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -122,20 +145,43 @@ const Profile: React.FC = () => {
       const username = editableProfile.username.trim();
       const email = editableProfile.email.trim();
 
-      if (!fullName) {
-        setError("Nama lengkap harus diisi");
-        return;
+      // Reset errors
+      setErrors({});
+
+      // Validate fields
+      const newErrors: { [key: string]: string } = {};
+      
+      if (!fullName.trim()) {
+        newErrors.fullName = "Nama lengkap harus diisi";
+      } else if (fullName.trim().length < 3) {
+        newErrors.fullName = "Nama lengkap minimal 3 karakter";
+      } else if (fullName.trim().length > 50) {
+        newErrors.fullName = "Nama lengkap maksimal 50 karakter";
+      } else if (!/^[a-zA-Z\s]+$/.test(fullName)) {
+        newErrors.fullName = "Nama lengkap hanya boleh berisi huruf";
       }
-      if (!username) {
-        setError("Username harus diisi");
-        return;
+
+      if (!username.trim()) {
+        newErrors.username = "Username harus diisi";
+      } else if (username.trim().length < 3) {
+        newErrors.username = "Username minimal 3 karakter";
+      } else if (username.trim().length > 20) {
+        newErrors.username = "Username maksimal 20 karakter";
+      } else if (!/^(?=.*[a-zA-Z])[a-zA-Z0-9_]+$/.test(username)) {
+        newErrors.username = "Username harus mengandung huruf dan tidak boleh hanya angka/simbol";
       }
+
       if (!email) {
-        setError("Email harus diisi");
-        return;
+        newErrors.email = "Email harus diisi";
+      } else if (!validateEmail(email)) {
+        newErrors.email = "Format email tidak valid";
       }
-      if (!validateEmail(email)) {
-        setError("Format email tidak valid");
+
+      if (Object.keys(newErrors).length > 0) {
+        setErrors({
+          ...newErrors,
+          general: Object.values(newErrors)[0]
+        });
         return;
       }
 
@@ -151,16 +197,26 @@ const Profile: React.FC = () => {
       if (response.data) {
         setProfile(response.data.data || response.data);
         setIsEditing(false);
-        setError("");
+        setErrors({});
         setSuccessMessage("Profil berhasil diperbarui");
-        setTimeout(() => setSuccessMessage(""), 3000);
       }
     } catch (err: any) {
-      let errorMessage = "Gagal menyimpan perubahan profil";
-      if (err.response?.data?.message) {
-        errorMessage = err.response.data.message;
+      const errorData = err.response?.data;
+      
+      
+      if (errorData?.field === 'username') {
+        setErrors({
+          general: "Username sudah digunakan"
+        });
+      } else if (errorData?.field === 'email') {
+        setErrors({
+          general: "Email sudah digunakan"
+        });
+      } else {
+        setErrors({ 
+          general: errorData?.message || "Gagal menyimpan perubahan profil" 
+        });
       }
-      setError(errorMessage);
       console.error("Error updating profile:", err.response?.data || err);
     } finally {
       setSaving(false);
@@ -185,18 +241,6 @@ const Profile: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto p-6">
-      {(error || errorUpload || successMessage) && (
-        <NotificationAlert
-          message={error || errorUpload || successMessage}
-          type={error || errorUpload ? "error" : "success"}
-          onClose={() => {
-            setError("");
-            setErrorUpload("");
-            setSuccessMessage("");
-          }}
-        />
-      )}
-
       <div className="bg-white rounded-lg shadow-md overflow-hidden">
         <div className="md:flex">
           <ProfileSidebar
@@ -210,6 +254,7 @@ const Profile: React.FC = () => {
             editableProfile={editableProfile}
             isEditing={isEditing}
             saving={saving}
+            errors={errors}
             onChange={handleChange}
             onSave={handleSave}
             onCancel={handleEditToggle}

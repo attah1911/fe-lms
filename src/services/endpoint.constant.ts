@@ -1,9 +1,11 @@
 const endpoint = {
     AUTH: '/auth',
     USERS: '/users',
-    TEACHERS: '/users/teachers',
-    STUDENTS: '/users/students',
-    MATA_PELAJARAN: '/mata-pelajaran'
+    TEACHERS: '/teachers',
+    STUDENTS: '/students',
+    MATA_PELAJARAN: '/mata-pelajaran',
+    MATERI_PELAJARAN: '/materi-pelajaran',
+    NOTIFICATION: '/notifications'
 }
 
 export default endpoint;

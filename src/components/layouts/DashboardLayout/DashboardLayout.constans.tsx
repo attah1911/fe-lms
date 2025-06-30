@@ -41,12 +41,6 @@ const SIDEBAR_ADMIN = [
         icon: <CiGrid41 />,
     },
     {
-        key: "profile",
-        label: "Profil",
-        href: "/admin/profile",
-        icon: <CiUser />,
-    },
-    {
         key: "dataakun",
         label: "Data Akun",
         href: "/admin/dataakun",
@@ -69,6 +63,12 @@ const SIDEBAR_ADMIN = [
         label: "Data Mata Pelajaran",
         href: "/admin/datamatapelajaran",
         icon: <FaBook />,
+    },
+    {
+        key: "setting",
+        label: "Setting",
+        href: "/admin/setting",
+        icon: <CiSettings />,
     },
 ];
 

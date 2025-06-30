@@ -1,6 +1,7 @@
 import "../styles/globals.css";
 import { cn } from "../utils/cn";
 import { NextUIProvider } from "@nextui-org/react";
+import { Toaster } from "sonner";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SessionProvider } from "next-auth/react";
 import type { AppProps } from "next/app";
@@ -24,7 +25,8 @@ const queryClient = new QueryClient({
 
 function AppContent({ Component, pageProps }: { Component: AppProps['Component'], pageProps: any }) {
   return (
-    <NextUIProvider>
+      <NextUIProvider>
+        <Toaster richColors position="top-right" />
       <main className={cn(inter.className)}>
         <SessionCheck />
         <PageLoading />

@@ -4,8 +4,6 @@ import Dashboard from "@/components/views/Guru/Dashboard";
 const DashboardGuruPage = () => {
   return (
     <DashboardLayout
-      title="Dashboard"
-      description="Dashboard Guru"
       type="guru"
     >
       <Dashboard />

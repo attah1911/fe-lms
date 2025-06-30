@@ -5,6 +5,15 @@ export interface MataPelajaran {
   tingkatKelas: string;
   kategori: string;
   guru: string | TeacherData;
+  enrolledStudents?: EnrolledStudent[];
+}
+
+export interface EnrolledStudent {
+  _id: string;
+  fullName: string;
+  email: string;
+  nis: string;
+  kelas: string;
 }
 
 export interface TeacherData {
@@ -15,9 +24,9 @@ export interface TeacherData {
 }
 
 export const tingkatKelasList = [
-  'KELAS_7',
-  'KELAS_8',
-  'KELAS_9'
+  '7-A', '7-B', '7-C', '7-D', '7-E', '7-F', '7-G', '7-H',
+  '8-A', '8-B', '8-C', '8-D', '8-E', '8-F', '8-G', '8-H',
+  '9-A', '9-B', '9-C', '9-D', '9-E', '9-F', '9-G', '9-H'
 ] as const;
 
 export const kategoriList = [
@@ -30,7 +39,8 @@ export const kategoriList = [
   'PPKN',
   'Seni Budaya',
   'Pendidikan Jasmani',
-  'Prakarya'
+  'Prakarya',
+  'Informatika'
 ] as const;
 
 export interface TeacherOption {

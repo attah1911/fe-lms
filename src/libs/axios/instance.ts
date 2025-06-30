@@ -1,25 +1,27 @@
 import environment from "../../config/environment";
 import { SessionExtended } from "../../types/Auth";
-import axios from "axios";
+import axios, { InternalAxiosRequestConfig, AxiosRequestConfig } from "axios";
 import { getSession, signOut } from "next-auth/react";
+
+// Define a custom request config interface with our additional properties
+export interface CustomRequestConfig extends AxiosRequestConfig {
+  noRedirect?: boolean;
+}
 
 // Create a custom event for loading state
 const loadingEvent = new CustomEvent('apiLoadingChange');
 
-// Ensure we have a valid API URL
-const API_URL = environment.API_URL;
-
-if (!API_URL) {
-  console.warn('API_URL is not set in environment variables. Using default:', API_URL);
-}
+const API_URL = environment.API_URL || 'http://localhost:3000';
 
 const instance = axios.create({
-  baseURL: API_URL,
+  baseURL: API_URL.replace(/\/+$/, ''), // Remove trailing slashes if any
   timeout: 60 * 1000,
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json'
-  }
+  },
+  // Allow absolute URLs to handle both relative and full URLs
+  allowAbsoluteUrls: true
 });
 
 // Track active requests
@@ -35,7 +37,7 @@ const updateLoading = (isLoading: boolean) => {
 
 // Request interceptor
 instance.interceptors.request.use(
-  async (request) => {
+  async (config: InternalAxiosRequestConfig) => {
     activeRequests++;
     updateLoading(true);
 
@@ -44,19 +46,18 @@ instance.interceptors.request.use(
       
       // Add auth header if we have a token
       if (session?.accessToken) {
-        request.headers.Authorization = `Bearer ${session.accessToken}`;
+        config.headers.set('Authorization', `Bearer ${session.accessToken}`);
       }
       
       // Don't transform FormData
-      if (request.data instanceof FormData) {
-        request.transformRequest = [(data) => data];
-        delete request.headers['Content-Type'];
+      if (config.data instanceof FormData) {
+        config.transformRequest = [(data) => data];
+        config.headers.delete('Content-Type');
       }
 
-      return request;
+      return config;
     } catch (error) {
-      console.error('Session fetch error:', error);
-      return request;
+      return config;
     }
   },
   (error) => {
@@ -84,25 +85,33 @@ instance.interceptors.response.use(
     }
 
     if (!error.response) {
-      console.error('Network error:', error);
       return Promise.reject(error);
     }
 
-    // Log error details
-    console.error('API Error:', {
-      url: error.config?.url,
-      status: error.response?.status,
-      data: error.response?.data
-    });
-
-    // Handle 401/403 errors (including token expiration)
+    // Add custom property to indicate auth error for handling in components
     if (error.response.status === 401 || error.response.status === 403) {
-      if (typeof window !== 'undefined') {
-        // Sign out and redirect to login page with callback URL
-        const currentPath = window.location.pathname;
-        signOut({ 
-          callbackUrl: `/auth/login?callbackUrl=${encodeURIComponent(currentPath)}`
-        }).catch(console.error);
+      error.isAuthError = true;
+    }
+
+    // Handle 403 errors (unauthorized)
+    if (error.response.status === 403) {
+      // Check for noRedirect flag in request config
+      const noRedirect = error.config.noRedirect;
+      
+      // Skip automatic redirect for certain endpoints
+      const skipRedirectEndpoints = ['/students/me', '/teachers/me'];
+      const shouldSkipRedirect = skipRedirectEndpoints.some(endpoint => 
+        error.config.url?.includes(endpoint)
+      );
+      
+      // Don't redirect on login errors, when noRedirect flag is set, or for skip endpoints
+      if (!error.config.url?.includes('/auth/login') && !noRedirect && !shouldSkipRedirect) {
+        if (typeof window !== 'undefined') {
+          await signOut({ 
+            redirect: true,
+            callbackUrl: '/auth/login'
+          });
+        }
       }
     }
 

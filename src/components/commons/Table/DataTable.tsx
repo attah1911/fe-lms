@@ -110,9 +110,9 @@ const DataTable: React.FC<DataTableProps> = ({
       {/* Pagination */}
       {data.length > 0 && (
         <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
-          <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm text-gray-700">
+          <div className="flex-1 flex flex-col sm:flex-row items-center justify-between">
+            <div className="mb-4 sm:mb-0">
+              <p className="text-sm text-gray-700 text-center sm:text-left">
                 {pagination.total > 0 ? (
                   <>
                     Showing{" "}
@@ -132,7 +132,7 @@ const DataTable: React.FC<DataTableProps> = ({
               </p>
             </div>
             <div>
-              <nav className="flex items-center gap-1">
+              <nav className="flex items-center justify-center sm:justify-end gap-1">
                 <Button
                   isIconOnly
                   size="sm"

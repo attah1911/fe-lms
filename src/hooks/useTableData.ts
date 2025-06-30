@@ -63,27 +63,56 @@ function useTableData<T>({
       
       const response = await fetchDataRef.current(page, search);
       
-      if (response.data.length === 0 && page > 1) {
+      // Validate response structure
+      if (!response || typeof response !== 'object') {
+        console.error('Invalid response format:', response);
+        setError('Invalid data format received from server');
+        setData([]);
+        setPagination({
+          total: 0,
+          totalPages: 0,
+          current: page,
+        });
+        return;
+      }
+      
+      // Ensure data is an array
+      const responseData = Array.isArray(response.data) ? response.data : [];
+      
+      if (responseData.length === 0 && page > 1) {
         // If no data on current page, fetch previous page
         const prevPage = page - 1;
         const prevResponse = await fetchDataRef.current(prevPage, search);
-        setData(prevResponse.data);
-        setPagination({
-          total: prevResponse.pagination.total,
-          totalPages: prevResponse.pagination.totalPages,
-          current: prevPage,
-        });
+        
+        // Validate previous response
+        if (!prevResponse || !Array.isArray(prevResponse.data)) {
+          setData([]);
+          setPagination({
+            total: 0,
+            totalPages: 0,
+            current: 1,
+          });
+        } else {
+          setData(prevResponse.data);
+          setPagination({
+            total: prevResponse.pagination?.total || 0,
+            totalPages: prevResponse.pagination?.totalPages || 0,
+            current: prevPage,
+          });
+        }
       } else {
-        setData(response.data);
+        setData(responseData);
         setPagination({
-          total: response.pagination.total,
-          totalPages: response.pagination.totalPages,
+          total: response.pagination?.total || 0,
+          totalPages: response.pagination?.totalPages || 0,
           current: page,
         });
       }
       setError(null);
     } catch (err: any) {
-      setError(err.message);
+      console.error('Error loading data:', err);
+      setError(err.message || 'Failed to load data');
+      setData([]);
     } finally {
       setLoading(false);
     }

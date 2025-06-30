@@ -1,14 +1,6 @@
 import React, { useEffect } from 'react';
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Button, Input, Select, SelectItem } from "@nextui-org/react";
-
-interface Student {
-  _id?: string;
-  fullName: string;
-  email: string;
-  nis: string;
-  kelas: string;
-  noTelp: string;
-}
+import { Student, kelasList } from "../../../../types/Student";
 
 interface ValidationErrors {
   fullName?: string;
@@ -142,12 +134,6 @@ const CreateEditStudentModal: React.FC<CreateEditStudentModalProps> = ({
     }
   };
 
-  const kelasList = [
-    'VII-A', 'VII-B', 'VII-C',
-    'VIII-A', 'VIII-B', 'VIII-C',
-    'IX-A', 'IX-B', 'IX-C'
-  ];
-
   return (
     <Modal 
       isOpen={isOpen} 
@@ -162,6 +148,13 @@ const CreateEditStudentModal: React.FC<CreateEditStudentModalProps> = ({
               {mode === 'create' ? 'Tambah Murid Baru' : 'Edit Murid'}
             </ModalHeader>
             <ModalBody>
+              {mode === 'create' && (
+                <div className="p-2 mb-4 bg-blue-50 border border-blue-200 rounded-md">
+                  <p className="text-sm text-blue-600">
+                    <span className="font-medium">Info:</span> Akun akan otomatis dibuat dengan password default: <span className="font-semibold">Smpn37Jakartamurid</span>
+                  </p>
+                </div>
+              )}
               <form id="studentForm" onSubmit={handleSubmit} className="space-y-4">
                 <Input
                   label="Nama Lengkap"

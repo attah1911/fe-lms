@@ -50,6 +50,15 @@ export const getMataPelajaran = async (params?: PaginationParams) => {
   }
 };
 
+export const getMataPelajaranById = async (id: string) => {
+  try {
+    const response = await instance.get(`${endpoint.MATA_PELAJARAN}/${id}`);
+    return response.data;
+  } catch (error: any) {
+    throw new Error(error.response?.data?.message || "Failed to fetch mata pelajaran detail");
+  }
+};
+
 // Create functions
 export const createUser = async (data: UserSubmitData) => {
   try {
@@ -116,6 +125,13 @@ export const createMataPelajaran = async (data: any) => {
     const response = await instance.post(endpoint.MATA_PELAJARAN, data);
     return response.data;
   } catch (error: any) {
+    console.error('Create MataPelajaran Error:', {
+      status: error.response?.status,
+      data: error.response?.data,
+      message: error.response?.data?.message,
+      requestData: data
+    });
+    
     if (error.response?.data?.meta?.errors) {
       const errors = error.response.data.meta.errors;
       const messages = Object.values(errors).flat().join(", ");
@@ -216,5 +232,36 @@ export const deleteMataPelajaran = async (id: string) => {
     return response.data;
   } catch (error: any) {
     throw new Error(error.response?.data?.message || "Failed to delete mata pelajaran");
+  }
+};
+
+// Enrollment
+export const getEnrolledStudents = async (mataPelajaranId: string) => {
+  try {
+    // Forward to the mataPelajaran service implementation
+    const { getEnrolledStudents } = await import('./mataPelajaran.service');
+    return getEnrolledStudents(mataPelajaranId);
+  } catch (error: any) {
+    throw new Error(error.message || "Failed to fetch enrolled students");
+  }
+};
+
+export const enrollStudent = async (mataPelajaranId: string, studentId: string) => {
+  try {
+    // Forward to the mataPelajaran service implementation
+    const { enrollStudent } = await import('./mataPelajaran.service');
+    return enrollStudent(mataPelajaranId, studentId);
+  } catch (error: any) {
+    throw new Error(error.message || "Failed to enroll student");
+  }
+};
+
+export const unenrollStudent = async (mataPelajaranId: string, studentId: string) => {
+  try {
+    // Forward to the mataPelajaran service implementation
+    const { unenrollStudent } = await import('./mataPelajaran.service');
+    return unenrollStudent(mataPelajaranId, studentId);
+  } catch (error: any) {
+    throw new Error(error.message || "Failed to unenroll student");
   }
 };

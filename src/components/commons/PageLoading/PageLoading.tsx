@@ -4,9 +4,23 @@ import { useRouter } from 'next/router';
 export const PageLoading: React.FC = () => {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const [currentPath, setCurrentPath] = useState('');
 
   useEffect(() => {
-    const handleStart = () => setIsLoading(true);
+    // Store the current path when component mounts
+    setCurrentPath(router.asPath.split('?')[0]);
+
+    const handleStart = (url: string) => {
+      // Extract the path without query parameters
+      const newPath = url.split('?')[0];
+      
+      // Only show loading if we're navigating to a different path
+      // This prevents loading overlay when just changing tabs
+      if (newPath !== currentPath) {
+        setIsLoading(true);
+      }
+    };
+    
     const handleComplete = () => setIsLoading(false);
 
     router.events.on('routeChangeStart', handleStart);
@@ -18,7 +32,7 @@ export const PageLoading: React.FC = () => {
       router.events.off('routeChangeComplete', handleComplete);
       router.events.off('routeChangeError', handleComplete);
     };
-  }, [router]);
+  }, [router, currentPath]);
 
   if (!isLoading) return null;
 

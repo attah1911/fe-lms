@@ -8,6 +8,12 @@ interface ProfileDetailsProps {
   editableProfile: IProfileUpdate;
   isEditing: boolean;
   saving: boolean;
+  errors?: {
+    fullName?: string;
+    username?: string;
+    email?: string;
+    general?: string;
+  };
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onSave: () => void;
   onCancel: () => void;
@@ -19,6 +25,7 @@ const ProfileDetails: React.FC<ProfileDetailsProps> = ({
   editableProfile,
   isEditing,
   saving,
+  errors = {},
   onChange,
   onSave,
   onCancel,
@@ -33,6 +40,7 @@ const ProfileDetails: React.FC<ProfileDetailsProps> = ({
           value={isEditing ? editableProfile.fullName : profile.fullName}
           isEditing={isEditing}
           onChange={onChange}
+          error={errors.fullName}
         />
 
         <ProfileField
@@ -41,6 +49,7 @@ const ProfileDetails: React.FC<ProfileDetailsProps> = ({
           value={isEditing ? editableProfile.username : profile.username}
           isEditing={isEditing}
           onChange={onChange}
+          error={errors.username}
         />
 
         <ProfileField
@@ -50,6 +59,7 @@ const ProfileDetails: React.FC<ProfileDetailsProps> = ({
           value={isEditing ? editableProfile.email : profile.email}
           isEditing={isEditing}
           onChange={onChange}
+          error={errors.email}
         />
 
         <ProfileField

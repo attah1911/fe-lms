@@ -1,9 +1,8 @@
 import environment from "../../../config/environment";
-import NextAuth, { DefaultSession, NextAuthOptions, User } from "next-auth";
+import NextAuth, { DefaultSession, NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { JWT } from "next-auth/jwt";
 import { UserExtended } from "../../../types/Auth";
-import authServices from "../../../services/auth.service";
 
 declare module "next-auth" {
   interface Session extends DefaultSession {
@@ -16,15 +15,11 @@ declare module "next-auth" {
 declare module "next-auth/jwt" {
   interface JWT {
     user: UserExtended;
+    accessToken?: string;
   }
 }
 
-const authOptions: NextAuthOptions = {
-  session: {
-    strategy: "jwt" as const,
-    maxAge: 60 * 60 * 12,
-  },
-  secret: environment.AUTH_SECRET,
+export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
       id: "credentials",
@@ -32,62 +27,100 @@ const authOptions: NextAuthOptions = {
       credentials: {
         identifier: { label: "identifier", type: "text" },
         password: { label: "password", type: "password" },
+        userData: { label: "userData", type: "text" },
       },
-      async authorize(
-        credentials: Record<"identifier" | "password", string> | undefined
-      ): Promise<UserExtended | null> {
+      async authorize(credentials) {
         try {
-          const { identifier, password } = credentials as {
-            identifier: string;
-            password: string;
-          };
-          const result = await authServices.login({
-            identifier,
-            password,
-          });
-
-          const accessToken = result.data.data;
-          const me = await authServices.getProfileWithToken(accessToken);
-          const user = me.data.data;
-
-          if (
-            accessToken &&
-            result.status === 200 &&
-            user._id &&
-            me.status === 200
-          ) {
-            return {
-              id: user._id,
-              _id: user._id,
-              email: user.email,
-              fullName: user.fullName,
-              role: user.role,
-              accessToken: accessToken,
-            } as UserExtended;
+          if (!credentials?.identifier || !credentials?.password || !credentials?.userData) {
+            return null;
           }
-          return null;
+
+          const userData = JSON.parse(credentials.userData);
+          
+          const user: UserExtended = {
+            id: userData._id,
+            _id: userData._id,
+            email: userData.email,
+            name: userData.fullName,
+            fullName: userData.fullName,
+            role: userData.role,
+            isActive: userData.isActive,
+            accessToken: credentials.password,
+          };
+
+          return user;
         } catch (error) {
-          console.error("Auth error:", error);
+          console.error('NextAuth authorize error:', error);
           return null;
         }
       },
     }),
   ],
+  pages: {
+    signIn: '/auth/login',
+    error: '/auth/login',
+    signOut: '/auth/login',
+  },
   callbacks: {
-    async jwt({ token, user }: { token: JWT; user: User | undefined }) {
+    async jwt({ token, user, trigger, session }) {
+      // Always ensure user role is preserved in the token
       if (user) {
-        token.user = user as UserExtended;
+        token.user = {
+          ...user,
+          role: (user as UserExtended).role // Ensure role is explicitly set
+        } as UserExtended;
+        token.accessToken = (user as UserExtended).accessToken;
       }
+
+      if (trigger === "update" && session) {
+        token.user = { 
+          ...token.user, 
+          ...session.user,
+          role: token.user.role // Preserve the original role
+        };
+      }
+
       return token;
     },
-    async session({ session, token }: { session: any; token: JWT }) {
-      if (token.user) {
-        session.user = token.user;
-        session.accessToken = token.user.accessToken;
+    async session({ session, token }) {
+      if (token) {
+        session.user = {
+          ...token.user,
+          role: token.user.role // Ensure role is passed to session
+        };
+        session.accessToken = token.accessToken;
       }
       return session;
     },
+    async redirect({ url, baseUrl }) {
+      // Always use environment.FRONTEND_URL as the base URL
+      const frontendUrl = environment.FRONTEND_URL;
+
+      // For sign-out, always redirect to login page
+      if (url.includes('signout') || url.includes('logout')) {
+        return `${frontendUrl}/auth/login`;
+      }
+
+      // Handle relative URLs
+      if (url.startsWith("/")) {
+        return `${frontendUrl}${url}`;
+      }
+
+      // Handle absolute URLs that match our frontend
+      if (url.startsWith(frontendUrl)) {
+        return url;
+      }
+
+      return frontendUrl;
+    },
   },
+  session: {
+    strategy: "jwt",
+    maxAge: 60 * 60 * 12, // 12 hours
+  },
+  secret: environment.AUTH_SECRET,
+  // Add debug logs in development
+  debug: process.env.NODE_ENV === 'development',
 };
 
 export default NextAuth(authOptions);

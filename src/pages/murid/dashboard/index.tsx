@@ -4,8 +4,6 @@ import Dashboard from "@/components/views/Murid/Dashboard";
 const DashboardMuridPage = () => {
   return (
     <DashboardLayout
-      title="Dashboard"
-      description="Dashboard Murid"
       type="murid"
     >
       <Dashboard />

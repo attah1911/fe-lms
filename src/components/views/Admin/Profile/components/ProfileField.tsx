@@ -8,6 +8,7 @@ interface ProfileFieldProps {
   onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
   type?: string;
   readOnly?: boolean;
+  error?: string;
 }
 
 const ProfileField: React.FC<ProfileFieldProps> = ({
@@ -17,7 +18,8 @@ const ProfileField: React.FC<ProfileFieldProps> = ({
   isEditing,
   onChange,
   type = "text",
-  readOnly = false
+  readOnly = false,
+  error
 }) => {
   return (
     <div>
@@ -30,7 +32,9 @@ const ProfileField: React.FC<ProfileFieldProps> = ({
           name={name}
           value={value}
           onChange={onChange}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+            error ? 'border-red-500' : 'border-gray-300'
+          }`}
         />
       ) : (
         <p className="text-gray-900 py-2">
@@ -42,6 +46,9 @@ const ProfileField: React.FC<ProfileFieldProps> = ({
               })
             : value}
         </p>
+      )}
+      {error && isEditing && (
+        <p className="mt-1 text-sm text-red-600">{error}</p>
       )}
     </div>
   );

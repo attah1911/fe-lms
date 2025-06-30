@@ -34,11 +34,30 @@ const DataMataPelajaran: React.FC = () => {
   const [selectedForDelete, setSelectedForDelete] = useState<ExtendedMataPelajaran>();
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const enrichMataPelajaranData = (data: ExtendedMataPelajaran[]): ExtendedMataPelajaran[] => {
-    return data.map(item => ({
-      ...item,
-      guruName: typeof item.guru === 'object' && item.guru.fullName ? item.guru.fullName : 'Unknown'
-    }));
+  const enrichMataPelajaranData = (data: any[]): ExtendedMataPelajaran[] => {
+    if (!Array.isArray(data)) {
+      console.error('Invalid data format received:', data);
+      return [];
+    }
+    
+    return data.map(item => {
+      // Ensure item exists and has necessary properties
+      if (!item) return {} as ExtendedMataPelajaran;
+      
+      // Handle different guru data formats
+      let guruName = 'Unknown';
+      if (typeof item.guru === 'object' && item.guru && item.guru.fullName) {
+        guruName = item.guru.fullName;
+      } else if (typeof item.guru === 'string') {
+        guruName = 'ID: ' + item.guru;
+      }
+      
+      return {
+        ...item,
+        _id: item._id || '',
+        guruName
+      };
+    });
   };
 
   const fetchTeachers = async () => {
@@ -60,14 +79,31 @@ const DataMataPelajaran: React.FC = () => {
     refreshData
   } = useTableData<ExtendedMataPelajaran>({
     fetchData: async (page, search) => {
-      const response = await getMataPelajaran({ page, limit: 50, search });
-      return {
-        data: enrichMataPelajaranData(response.data),
-        pagination: {
-          total: response.pagination.total,
-          totalPages: response.pagination.totalPages
+      try {
+        const response = await getMataPelajaran({ page, limit: 50, search });
+        
+        // Ensure response has the expected structure
+        if (!response.data || !response.pagination) {
+          return {
+            data: [],
+            pagination: {
+              total: 0,
+              totalPages: 0
+            }
+          };
         }
-      };
+        
+        return {
+          data: enrichMataPelajaranData(response.data),
+          pagination: {
+            total: response.pagination.total || 0,
+            totalPages: response.pagination.totalPages || 0
+          }
+        };
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        throw error;
+      }
     }
   });
 
@@ -227,7 +263,7 @@ const DataMataPelajaran: React.FC = () => {
       {/* Table */}
       <DataTable
         columns={columns}
-        data={mataPelajarans}
+        data={mataPelajarans || []}
         pagination={pagination}
         onPageChange={handlePageChange}
         onEdit={handleEdit}

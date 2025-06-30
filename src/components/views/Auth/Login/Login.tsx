@@ -1,18 +1,14 @@
-import {
-  Button,
-  Card,
-  CardBody,
-  Input,
-  Spinner,
-} from "@nextui-org/react";
+import React from "react";
+import { Card, CardBody, Input, Button } from "@nextui-org/react";
+import { Controller } from "react-hook-form";
+import { FaEye, FaEyeSlash } from "react-icons/fa";
+import { FaArrowLeft } from "react-icons/fa6";
+import { useLogin } from "./useLogin";
 import Image from "next/image";
 import Link from "next/link";
-import useLogin from "./useLogin";
-import { FaEye, FaEyeSlash } from "react-icons/fa6";
-import { Controller } from "react-hook-form";
-import { cn } from "@/utils/cn";
+import { cn } from "../../../../utils/cn";
 
-const Login = () => {
+const Login: React.FC = () => {
   const {
     isVisible,
     toggleVisibility,
@@ -21,20 +17,29 @@ const Login = () => {
     handleLogin,
     isPendingLogin,
     errors,
+    handleResendActivation,
+    isResending,
+    lastAttemptedEmail,
   } = useLogin();
 
   return (
-    <div className="flex w-full flex-col items-center justify-center gap-10 lg:ml-10 lg:flex-row lg:gap-40">
-      <div className="flex w-full flex-col items-center justify-center gap-10 lg:w-1/3">
+    <div className="flex w-full flex-col items-center justify-center gap-6 px-4 lg:flex-row lg:gap-20">
+      <Link href="/" className="absolute top-6 left-6 flex items-center gap-2 text-blue-500 hover:text-blue-600 transition-colors">
+        <FaArrowLeft />
+        <span>Kembali ke Homepage</span>
+      </Link>
+      
+      <div className="hidden w-full max-w-[600px] items-center justify-center lg:flex">
         <Image
-          src="/images/illustrations/register.svg"
+          src="/images/illustrations/login.svg"
           alt="login"
-          className="w-2/3 max-w-none lg:w-[175%]"
-          width={1024}
-          height={1024}
+          className="w-full"
+          width={600}
+          height={600}
+          priority
         />
       </div>
-      <Card>
+      <Card className="w-full max-w-[380px]">
         <CardBody className="p-8">
           <h2 className="text-2xl font-bold text-blue-500">Login</h2>
           <p className="mb-4 mt-2 text-small">
@@ -44,44 +49,60 @@ const Login = () => {
             </Link>
           </p>
           {errors.root && (
-            <p className="mb-2 font-medium text-danger">
-              {errors?.root?.message}
-            </p>
+            <div className="mb-4 rounded-lg bg-danger-50 p-4">
+              <p className="text-sm text-danger">
+                {errors.root.message}
+                {errors.root.message?.includes("Akun belum diaktivasi") && lastAttemptedEmail && (
+                  <Button
+                    className="ml-2 h-auto min-w-0 bg-transparent p-0 text-sm font-semibold text-blue-500 hover:text-blue-600"
+                    onClick={() => handleResendActivation(lastAttemptedEmail)}
+                    isDisabled={isResending}
+                    isLoading={isResending}
+                    size="sm"
+                    variant="light"
+                  >
+                    Kirim ulang email aktivasi
+                  </Button>
+                )}
+              </p>
+            </div>
           )}
           <form
             className={cn(
-              "flex w-80 flex-col",
-              Object.keys(errors).length > 0 ? "gap-2" : "gap-4",
+              "flex w-full flex-col",
+              Object.keys(errors).length > 0 ? "gap-2" : "gap-4"
             )}
             onSubmit={handleSubmit(handleLogin)}
           >
             <Controller
               name="identifier"
               control={control}
-              render={({ field }) => (
+              defaultValue=""
+              render={({ field, fieldState }) => (
                 <Input
                   {...field}
                   type="text"
                   label="Email / Username"
                   variant="bordered"
                   autoComplete="off"
-                  isInvalid={errors.identifier !== undefined}
-                  errorMessage={errors.identifier?.message}
+                  isInvalid={Boolean(fieldState.error)}
+                  errorMessage={fieldState.error?.message}
                 />
               )}
             />
             <Controller
               name="password"
               control={control}
-              render={({ field }) => (
+              defaultValue=""
+              render={({ field, fieldState }) => (
                 <Input
                   {...field}
                   type={isVisible ? "text" : "password"}
                   label="Password"
                   variant="bordered"
                   autoComplete="off"
-                  isInvalid={errors.password !== undefined}
-                  errorMessage={errors.password?.message}
+                  isInvalid={Boolean(fieldState.error)}
+                  errorMessage={fieldState.error?.message}
                   endContent={
                     <button
                       className="focus:outline-none"
@@ -98,14 +119,18 @@ const Login = () => {
                 />
               )}
             />
-            <Button color="primary" size="lg" type="submit">
-              {isPendingLogin ? <Spinner color="white" size="sm" /> : "Login"}
+            <Button 
+              color="primary" 
+              size="lg" 
+              type="submit"
+              isLoading={isPendingLogin}
+            >
+              Login
             </Button>
           </form>
         </CardBody>
       </Card>
     </div>
-    //15:53
   );
 };
 
