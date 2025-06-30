@@ -204,7 +204,7 @@ const TeacherGradingPage: React.FC = () => {
   // Initial data fetch
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
 
   // Open grading modal
   const handleOpenGradingModal = (submission: SubmissionWithUserData) => {
@@ -318,7 +318,7 @@ const TeacherGradingPage: React.FC = () => {
         setSelectedAssignment("all");
       }
     }
-  }, [selectedMataPelajaran]);
+  }, [selectedMataPelajaran, selectedAssignment]);
 
   // Filter and sort submissions
   const filteredSubmissions = submissions.filter(submission => {

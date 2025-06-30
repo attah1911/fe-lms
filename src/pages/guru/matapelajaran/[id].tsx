@@ -48,6 +48,42 @@ const MataPelajaranDetail: React.FC = () => {
   const [enrolledStudents, setEnrolledStudents] = useState<EnrolledStudent[]>([]);
   const [activeTab, setActiveTab] = useState<string>("materi");
   
+  // Define fetchAssignments and fetchEnrolledStudents before the useEffect that uses them
+  const fetchAssignments = async () => {
+    if (!id || materiList.length === 0) return;
+    
+    try {
+      setLoadingAssignments(true);
+      // Get assignments for the first materi (as an example)
+      // In production you might want to get all assignments for all materis
+      const firstMateriId = materiList[0]._id;
+      const response = await getAssignmentsByMateriId(firstMateriId);
+      setAssignments(response.data);
+    } catch (err: any) {
+      console.error("Error fetching assignments:", err);
+    } finally {
+      setLoadingAssignments(false);
+    }
+  };
+  
+  const fetchEnrolledStudents = async () => {
+    if (!id) return;
+    
+    try {
+      setLoadingStudents(true);
+      const response = await getEnrolledStudents(id as string);
+      setEnrolledStudents(response.data || []);
+    } catch (err: any) {
+      console.error("Error fetching enrolled students:", err);
+      toast.error("Gagal memuat daftar siswa", {
+        description: "Terjadi kesalahan saat memuat daftar siswa yang terdaftar.",
+        duration: 3000
+      });
+    } finally {
+      setLoadingStudents(false);
+    }
+  };
+
   useEffect(() => {
     // Check for tab parameter in URL
     if (router.query.tab) {
@@ -93,42 +129,7 @@ const MataPelajaranDetail: React.FC = () => {
     if (activeTab === 'siswa' && id && enrolledStudents.length === 0) {
       fetchEnrolledStudents();
     }
-  }, [activeTab, materiList.length, id]);
-  
-  const fetchAssignments = async () => {
-    if (!id || materiList.length === 0) return;
-    
-    try {
-      setLoadingAssignments(true);
-      // Get assignments for the first materi (as an example)
-      // In production you might want to get all assignments for all materis
-      const firstMateriId = materiList[0]._id;
-      const response = await getAssignmentsByMateriId(firstMateriId);
-      setAssignments(response.data);
-    } catch (err: any) {
-      console.error("Error fetching assignments:", err);
-    } finally {
-      setLoadingAssignments(false);
-    }
-  };
-  
-  const fetchEnrolledStudents = async () => {
-    if (!id) return;
-    
-    try {
-      setLoadingStudents(true);
-      const response = await getEnrolledStudents(id as string);
-      setEnrolledStudents(response.data || []);
-    } catch (err: any) {
-      console.error("Error fetching enrolled students:", err);
-      toast.error("Gagal memuat daftar siswa", {
-        description: "Terjadi kesalahan saat memuat daftar siswa yang terdaftar.",
-        duration: 3000
-      });
-    } finally {
-      setLoadingStudents(false);
-    }
-  };
+  }, [activeTab, materiList.length, id, assignments.length, enrolledStudents.length, fetchAssignments, fetchEnrolledStudents]);
   
   const handleBack = () => {
     router.push('/guru/dashboard');

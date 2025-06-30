@@ -135,7 +135,7 @@ function useTableData<T>({
   // Initial load - only run once
   useEffect(() => {
     loadData(initialPage, initialSearch);
-  }, []); // Empty dependency array for initial load only
+  }, [initialPage, initialSearch, loadData]);
 
   return {
     data,

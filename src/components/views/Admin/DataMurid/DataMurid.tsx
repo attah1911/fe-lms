@@ -69,7 +69,7 @@ const DataMurid: React.FC = () => {
 
   useEffect(() => {
     fetchStudents(1, searchTerm);
-  }, []);
+  }, [searchTerm]);
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);

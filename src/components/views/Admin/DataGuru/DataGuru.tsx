@@ -69,7 +69,7 @@ const DataGuru: React.FC = () => {
 
   useEffect(() => {
     fetchTeachers(1, searchTerm);
-  }, []);
+  }, [searchTerm]);
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);

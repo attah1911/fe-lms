@@ -60,7 +60,7 @@ const AssignmentSubmissionsModal: React.FC<AssignmentSubmissionsModalProps> = ({
     if (isOpen && assignmentId) {
       fetchAssignmentDetails();
     }
-  }, [isOpen, assignmentId]);
+  }, [isOpen, assignmentId, fetchAssignmentDetails]);
 
   const handleDownloadSubmission = (fileUrl: string, fileName: string) => {
     downloadFile(fileUrl, fileName);

@@ -92,6 +92,8 @@ const MataPelajaranDetail: React.FC<MataPelajaranDetailProps> = ({ id }) => {
   const [enrolledMataPelajaranIds, setEnrolledMataPelajaranIds] = useState<string[]>([]);
 
   useEffect(() => {
+    if (!id) return;
+
     const fetchEnrollmentStatus = async () => {
       try {
         const enrolledResponse = await getEnrolledMataPelajaran();
@@ -109,11 +111,7 @@ const MataPelajaranDetail: React.FC<MataPelajaranDetailProps> = ({ id }) => {
         console.error("Error checking enrollment status:", err);
       }
     };
-    
-    fetchEnrollmentStatus();
-  }, [id]);
 
-  useEffect(() => {
     const fetchData = async () => {
       if (!id) return;
       
@@ -143,14 +141,7 @@ const MataPelajaranDetail: React.FC<MataPelajaranDetailProps> = ({ id }) => {
     fetchData();
   }, [id, isEnrolled]);
   
-  // Separate effect to handle tab changes and load specific data
-  useEffect(() => {
-    // Load tasks when switching to the tasks tab
-    if (isEnrolled && activeTab === 'tugas' && materiList.length > 0 && assignments.length === 0) {
-      fetchAssignments();
-    }
-  }, [activeTab, materiList.length, id, isEnrolled]);
-  
+  // Define fetchAssignments before using it in the useEffect
   const fetchAssignments = async () => {
     if (!id || materiList.length === 0) return;
     
@@ -166,6 +157,14 @@ const MataPelajaranDetail: React.FC<MataPelajaranDetailProps> = ({ id }) => {
       setLoadingAssignments(false);
     }
   };
+  
+  // Separate effect to handle tab changes and load specific data
+  useEffect(() => {
+    // Load tasks when switching to the tasks tab
+    if (isEnrolled && activeTab === 'tugas' && materiList.length > 0 && assignments.length === 0) {
+      fetchAssignments();
+    }
+  }, [activeTab, materiList.length, id, isEnrolled, assignments.length, fetchAssignments]);
   
   const handleBack = () => {
     router.push('/murid/dashboard');

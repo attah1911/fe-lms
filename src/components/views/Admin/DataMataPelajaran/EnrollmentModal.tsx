@@ -88,13 +88,13 @@ const EnrollmentModal: React.FC<EnrollmentModalProps> = ({
     if (isOpen && mataPelajaranId) {
       fetchEnrolledStudents();
     }
-  }, [isOpen, mataPelajaranId]);
+  }, [isOpen, mataPelajaranId, fetchEnrolledStudents]);
 
   useEffect(() => {
     if (activeTab === 'available' && isOpen) {
       fetchAvailableStudents();
     }
-  }, [activeTab, isOpen, enrolledStudents]);
+  }, [activeTab, isOpen, enrolledStudents, fetchAvailableStudents]);
 
   const handleEnrollStudent = async (studentId: string) => {
     try {

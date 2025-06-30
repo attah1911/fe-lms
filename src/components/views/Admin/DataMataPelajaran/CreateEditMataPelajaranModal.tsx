@@ -63,7 +63,7 @@ const CreateEditMataPelajaranModal = ({
       const titleTemplate = `${kategori} | ${tingkatKelas} | ${teacherName}`;
       setValue('judul', titleTemplate);
     }
-  }, [kategori, tingkatKelas, guruId, setValue, isAutoTitleEnabled, mode, teachers]);
+  }, [kategori, tingkatKelas, guruId, setValue, isAutoTitleEnabled, mode, teachers, getTeacherName]);
 
   // Reset form when modal opens/closes or when initialData changes
   useEffect(() => {

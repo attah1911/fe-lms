@@ -161,7 +161,7 @@ const TeacherAssignmentsPage: React.FC = () => {
   // Initial data fetch
   useEffect(() => {
     fetchMataPelajaran();
-  }, []);
+  }, [fetchMataPelajaran]);
 
   // Filter assignments based on selected filters
   const filteredAssignments = assignments.filter((assignment) => {

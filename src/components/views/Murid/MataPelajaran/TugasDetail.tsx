@@ -165,74 +165,7 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
   const [hasSubmitted, setHasSubmitted] = useState<boolean>(false);
   const [initialLoadComplete, setInitialLoadComplete] = useState<boolean>(false);
 
-  // Update useEffect untuk lebih prioritaskan data lokal
-  useEffect(() => {
-    if (tugasId && session?.user?.id) {
-      // Prioritaskan data dari sessionStorage untuk navigasi antar halaman
-      const submissionKey = `submission_${tugasId}_${session.user.id}`;
-      const submissionStatus = sessionStorage.getItem(submissionKey) || localStorage.getItem(submissionKey);
-      const submissionData = sessionStorage.getItem(`${submissionKey}_data`) || localStorage.getItem(`${submissionKey}_data`);
-      
-      let loadedFromCache = false;
-      
-      if (submissionStatus === 'submitted') {
-        setHasSubmitted(true);
-        
-        // Jika ada data tersimpan, gunakan sementara sampai API mengembalikan data
-        if (submissionData) {
-          try {
-            const parsedData = JSON.parse(submissionData);
-            setMySubmissions([parsedData]);
-            loadedFromCache = true;
-          } catch (e) {
-          }
-        }
-      }
-      
-      fetchData().then(() => {
-        setInitialLoadComplete(true);
-        
-        // Jika tidak ada data dari API, pastikan data cache tetap digunakan
-        if (loadedFromCache && mySubmissions.length === 0) {
-          try {
-            const parsedData = JSON.parse(submissionData!);
-            setMySubmissions([parsedData]);
-          } catch (e) {
-          }
-        }
-      });
-    }
-  }, [tugasId, session?.user?.id]);
-
-  // Fungsi untuk menyimpan data submission ke storage
-  const saveSubmissionToStorage = (submissionData: Submission) => {
-    if (!tugasId || !session?.user?.id) return;
-    
-    const submissionKey = `submission_${tugasId}_${session.user.id}`;
-    const dataToStore = JSON.stringify(submissionData);
-    
-    // Simpan ke localStorage untuk persistensi jangka panjang
-    localStorage.setItem(submissionKey, 'submitted');
-    localStorage.setItem(`${submissionKey}_data`, dataToStore);
-    
-    // Simpan ke sessionStorage untuk akses lebih cepat selama sesi
-    sessionStorage.setItem(submissionKey, 'submitted');
-    sessionStorage.setItem(`${submissionKey}_data`, dataToStore);
-  };
-
-  // Fungsi untuk menghapus data submission dari storage
-  const clearSubmissionFromStorage = () => {
-    if (!tugasId || !session?.user?.id) return;
-    
-    const submissionKey = `submission_${tugasId}_${session.user.id}`;
-    
-    // Hapus dari kedua storage
-    localStorage.removeItem(submissionKey);
-    localStorage.removeItem(`${submissionKey}_data`);
-    sessionStorage.removeItem(submissionKey);
-    sessionStorage.removeItem(`${submissionKey}_data`);
-  };
-
+  // Define fetchData before the useEffect that uses it
   const fetchData = async () => {
     if (!tugasId || !mataPelajaranId || !session?.user) return;
     
@@ -392,6 +325,7 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
                 setMySubmissions([parsedData]);
               } catch (e) {
                 console.error('Error parsing cached submission data:', e);
+                // Hanya reset jika tidak ada data yang valid
                 setMySubmissions([]);
               }
             } else {
@@ -399,32 +333,71 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
             }
           }
         }
-      } else {
-        console.error("No assignment data returned from API");
-        setError("Tidak dapat memuat data tugas");
       }
-    } catch (err: any) {
-      console.error("Error fetching tugas detail:", err);
-      setError(err.message || "Gagal memuat detail tugas");
       
-      // Pada kasus error, tetap coba tampilkan data dari storage
-      if (mySubmissions.length === 0) {
-        const submissionKey = `submission_${tugasId}_${session?.user?.id}`;
-        const submissionData = localStorage.getItem(`${submissionKey}_data`);
-        
-        if (submissionData) {
-          try {
-            const parsedData = JSON.parse(submissionData);
-            setMySubmissions([parsedData]);
-            setHasSubmitted(true);
-          } catch (e) {
-            console.error('Failed to restore cache after fetch error');
-          }
-        }
-      }
+      setInitialLoadComplete(true);
+    } catch (err: any) {
+      console.error("Error loading assignment:", err);
+      toast.error("Gagal memuat tugas", {
+        description: "Terjadi kesalahan saat memuat data tugas."
+      });
     } finally {
       setLoading(false);
     }
+  };
+
+  useEffect(() => {
+    if (tugasId && mataPelajaranId) {
+      fetchData();
+      // Check and set submission status from local storage
+      const submissionKey = `submission_${tugasId}_${session?.user?.id}`;
+      const submissionStatus = localStorage.getItem(submissionKey);
+      const submissionData = localStorage.getItem(`${submissionKey}_data`);
+      setHasSubmitted(submissionStatus === 'submitted');
+      
+      if (submissionStatus === 'submitted' && submissionData) {
+        // Load stored submission data from localStorage
+        const loadedFromCache = true;
+        
+        // Jika tidak ada data dari API, pastikan data cache tetap digunakan
+        if (loadedFromCache && mySubmissions.length === 0) {
+          try {
+            const parsedData = JSON.parse(submissionData!);
+            setMySubmissions([parsedData]);
+          } catch (e) {
+          }
+        }
+      }
+    }
+  }, [tugasId, mataPelajaranId, session?.user?.id, mySubmissions.length, fetchData]);
+  
+  // Fungsi untuk menyimpan data submission ke storage
+  const saveSubmissionToStorage = (submissionData: Submission) => {
+    if (!tugasId || !session?.user?.id) return;
+    
+    const submissionKey = `submission_${tugasId}_${session.user.id}`;
+    const dataToStore = JSON.stringify(submissionData);
+    
+    // Simpan ke localStorage untuk persistensi jangka panjang
+    localStorage.setItem(submissionKey, 'submitted');
+    localStorage.setItem(`${submissionKey}_data`, dataToStore);
+    
+    // Simpan ke sessionStorage untuk akses lebih cepat selama sesi
+    sessionStorage.setItem(submissionKey, 'submitted');
+    sessionStorage.setItem(`${submissionKey}_data`, dataToStore);
+  };
+
+  // Fungsi untuk menghapus data submission dari storage
+  const clearSubmissionFromStorage = () => {
+    if (!tugasId || !session?.user?.id) return;
+    
+    const submissionKey = `submission_${tugasId}_${session.user.id}`;
+    
+    // Hapus dari kedua storage
+    localStorage.removeItem(submissionKey);
+    localStorage.removeItem(`${submissionKey}_data`);
+    sessionStorage.removeItem(submissionKey);
+    sessionStorage.removeItem(`${submissionKey}_data`);
   };
 
   const handleBack = () => {
@@ -1109,7 +1082,7 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
                           <FiCheckCircle size={24} className="text-success" />
                           <div>
                             <h4 className="text-sm sm:text-base font-medium">File tugas telah dikumpulkan</h4>
-                            <p className="text-xs text-gray-500">Klik tombol "Refresh" untuk melihat detail pengumpulan</p>
+                            <p className="text-xs text-gray-500">Klik tombol &quot;Refresh&quot; untuk melihat detail pengumpulan</p>
                           </div>
                         </div>
                         

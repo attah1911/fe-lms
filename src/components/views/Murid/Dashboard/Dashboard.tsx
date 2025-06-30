@@ -746,7 +746,7 @@ const Dashboard: React.FC = () => {
                   </div>
                 ) : todos.length === 0 ? (
                   <p className="text-center text-gray-500 py-2 sm:py-3 text-sm sm:text-base">
-                    Belum ada Notes. Klik "Tambah" untuk membuat baru.
+                    Belum ada Notes. Klik &quot;Tambah&quot; untuk membuat baru.
                   </p>
                 ) : (
                   <div className="space-y-2">

@@ -119,7 +119,7 @@ export const deleteOwnSubmission = async (assignmentId: string, submissionId: st
   }
 };
 
-export default {
+const assignmentService = {
   createAssignment,
   getAssignmentsByMateriId,
   getAssignmentById,
@@ -131,3 +131,5 @@ export default {
   deleteSubmission,
   deleteOwnSubmission
 }; 
+
+export default assignmentService; 

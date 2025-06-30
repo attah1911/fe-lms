@@ -113,7 +113,7 @@ const MataPelajaranDetail: React.FC = () => {
     if (activeTab === "tugas" && materiList.length > 0 && assignments.length === 0) {
       fetchAssignments(materiList);
     }
-  }, [activeTab, materiList.length]);
+  }, [activeTab, materiList, materiList.length, assignments.length]);
 
   const fetchAssignments = async (materials: Materi[]) => {
     try {
