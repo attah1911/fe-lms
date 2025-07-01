@@ -52,65 +52,7 @@ const TeacherAssignmentsPage: React.FC = () => {
   const [selectedMataPelajaran, setSelectedMataPelajaran] = useState<string>("all");
   const [showError, setShowError] = useState(false);
   const [loadingMateri, setLoadingMateri] = useState(false);
-  
-  // Fetch all mata pelajaran for the teacher
-  const fetchMataPelajaran = useCallback(async () => {
-    try {
-      setLoading(true);
-      const response = await getGuruMataPelajaran({ limit: 100 });
-      
-      if (response && response.data && response.data.length > 0) {
-        // Store the basic mata pelajaran data first
-        setMataPelajaranList(response.data);
-        
-        // Now fetch materi for each mata pelajaran
-        await fetchMateriForMataPelajaran(response.data);
-      } else {
-        
-        setLoading(false);
-      }
-    } catch (err: any) {
-      console.error("Error fetching mata pelajaran:", err);
-      setError(err.message || "Failed to load subjects");
-      setShowError(true);
-      setLoading(false);
-    }
-  }, []);
 
-  // Fetch materi for each mata pelajaran
-  const fetchMateriForMataPelajaran = useCallback(async (mataPelajaranData: ExtendedMataPelajaran[]) => {
-    setLoadingMateri(true);
-    const updatedMataPelajaranList: ExtendedMataPelajaran[] = [];
-    
-    for (const mp of mataPelajaranData) {
-      try {
-        const materiResponse = await getMateriByMataPelajaranId(mp._id as string);
-        
-        if (materiResponse && materiResponse.data) {
-          // Add materi data to the mata pelajaran object
-          updatedMataPelajaranList.push({
-            ...mp,
-            materiPelajaranList: materiResponse.data
-          });
-        } else {
-          // No materi found, keep the original mata pelajaran
-          updatedMataPelajaranList.push(mp);
-        }
-      } catch (err) {
-        console.error(`Error fetching materi for mata pelajaran ${mp._id}:`, err);
-        // Keep original mata pelajaran even if there was an error
-        updatedMataPelajaranList.push(mp);
-      }
-    }
-    
-    // Update the state with mata pelajaran that include materi data
-    setMataPelajaranList(updatedMataPelajaranList);
-    setLoadingMateri(false);
-    
-    // Now fetch assignments using the updated list with materi data
-    await fetchAssignmentsForMataPelajaran(updatedMataPelajaranList);
-  }, []);
-  
   // Separate function to fetch assignments for specific mata pelajaran list
   const fetchAssignmentsForMataPelajaran = useCallback(async (mataPelajaranData: ExtendedMataPelajaran[]) => {
     try {
@@ -157,6 +99,64 @@ const TeacherAssignmentsPage: React.FC = () => {
       setLoading(false);
     }
   }, []);
+  
+  // Fetch materi for each mata pelajaran
+  const fetchMateriForMataPelajaran = useCallback(async (mataPelajaranData: ExtendedMataPelajaran[]) => {
+    setLoadingMateri(true);
+    const updatedMataPelajaranList: ExtendedMataPelajaran[] = [];
+    
+    for (const mp of mataPelajaranData) {
+      try {
+        const materiResponse = await getMateriByMataPelajaranId(mp._id as string);
+        
+        if (materiResponse && materiResponse.data) {
+          // Add materi data to the mata pelajaran object
+          updatedMataPelajaranList.push({
+            ...mp,
+            materiPelajaranList: materiResponse.data
+          });
+        } else {
+          // No materi found, keep the original mata pelajaran
+          updatedMataPelajaranList.push(mp);
+        }
+      } catch (err) {
+        console.error(`Error fetching materi for mata pelajaran ${mp._id}:`, err);
+        // Keep original mata pelajaran even if there was an error
+        updatedMataPelajaranList.push(mp);
+      }
+    }
+    
+    // Update the state with mata pelajaran that include materi data
+    setMataPelajaranList(updatedMataPelajaranList);
+    setLoadingMateri(false);
+    
+    // Now fetch assignments using the updated list with materi data
+    await fetchAssignmentsForMataPelajaran(updatedMataPelajaranList);
+  }, [fetchAssignmentsForMataPelajaran]);
+
+  // Fetch all mata pelajaran for the teacher
+  const fetchMataPelajaran = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await getGuruMataPelajaran({ limit: 100 });
+      
+      if (response && response.data && response.data.length > 0) {
+        // Store the basic mata pelajaran data first
+        setMataPelajaranList(response.data);
+        
+        // Now fetch materi for each mata pelajaran
+        await fetchMateriForMataPelajaran(response.data);
+      } else {
+        
+        setLoading(false);
+      }
+    } catch (err: any) {
+      console.error("Error fetching mata pelajaran:", err);
+      setError(err.message || "Failed to load subjects");
+      setShowError(true);
+      setLoading(false);
+    }
+  }, [fetchMateriForMataPelajaran]);
   
   // Initial data fetch
   useEffect(() => {
@@ -272,79 +272,65 @@ const TeacherAssignmentsPage: React.FC = () => {
             <p className="text-gray-500">Belum ada tugas yang tersedia.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredAssignments.map((assignment) => {
-              const gradingProgress = calculateGradingProgress(assignment);
-              return (
-                <Card key={assignment._id} className="w-full">
-                  <CardBody className="p-4">
-                    <div className="flex flex-col h-full">
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <h3 className="text-lg font-semibold line-clamp-1">{assignment.title}</h3>
-                          <p className="text-sm text-gray-500 mb-2">
-                            {assignment.mataPelajaranTitle}
-                          </p>
-                        </div>
+          <div className="grid grid-cols-1 gap-4">
+            {filteredAssignments.map((assignment) => (
+              <Card key={assignment._id} className="w-full shadow-sm">
+                <CardBody className="p-4">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                          <div>
+                        <h3 className="text-lg font-medium text-gray-900 mb-1">
+                          {assignment.title}
+                        </h3>
+                        <p className="text-sm text-gray-600 mb-2">
+                          {assignment.mataPelajaranTitle} - {assignment.materiTitle}
+                        </p>
+                      <div className="flex flex-wrap gap-2 mb-2">
                         <Chip 
                           color={isDeadlinePassed(assignment.deadline) ? "danger" : "success"} 
                           size="sm"
                         >
-                          {isDeadlinePassed(assignment.deadline) ? "Ditutup" : "Aktif"}
+                          {isDeadlinePassed(assignment.deadline) 
+                            ? "Tenggat telah berakhir" 
+                            : "Tenggat masih berlaku"
+                          }
+                        </Chip>
+                        <Chip color="primary" size="sm">
+                          {assignment.submissions ? assignment.submissions.length : 0} pengumpulan
                         </Chip>
                       </div>
-                      
-                      <div className="mb-3 flex-grow">
-                        <p className="text-sm line-clamp-2">{assignment.description}</p>
-                      </div>
-                      
-                      <div className="text-xs text-gray-500 mb-3">
-                        <p><strong>Batas Waktu:</strong> {formatDate(assignment.deadline)}</p>
-                        <p><strong>Pengumpulan:</strong> {assignment.submissions?.length || 0} tugas</p>
-                      </div>
-                      
-                      {/* Add progress bar for grading */}
-                      <div className="mb-3">
-                        <div className="flex justify-between items-center mb-1">
-                          <span className="text-xs font-medium">Progress Penilaian</span>
-                          <span className="text-xs font-medium">{gradingProgress}%</span>
-                        </div>
-                        <Progress 
-                          value={gradingProgress} 
-                          color={gradingProgress === 100 ? "success" : "primary"}
-                          className="h-2"
-                          aria-label="Grading progress"
-                        />
-                      </div>
-                      
-                      <div className="border-t pt-3">
-                        <div className="flex justify-between items-center">
-                          <Button
-                            color="primary"
-                            variant="flat"
-                            size="sm"
-                            onPress={() => handleViewAssignment(assignment)}
-                          >
-                            Lihat Pengumpulan Tugas
-                          </Button>
-                          
-                          <Button
-                            color="success"
-                            variant="solid"
-                            size="sm"
-                            startContent={<FiCheckCircle />}
-                            onPress={() => router.push(`/guru/penilaian?assignmentId=${assignment._id}`)}
-                            className="shadow-sm"
-                          >
-                            Penilaian
-                          </Button>
-                        </div>
-                      </div>
+                      <p className="text-xs text-gray-500">
+                        Tenggat: {formatDate(assignment.deadline)}
+                      </p>
                     </div>
-                  </CardBody>
-                </Card>
-              );
-            })}
+                    
+                    <div className="flex flex-col gap-2 w-full sm:w-auto">
+                      {assignment.submissions && assignment.submissions.length > 0 && (
+                        <div className="w-full sm:w-48 mb-2">
+                          <div className="flex justify-between text-xs text-gray-600 mb-1">
+                            <span>Progress Penilaian</span>
+                            <span>{calculateGradingProgress(assignment)}%</span>
+                          </div>
+                          <Progress 
+                            value={calculateGradingProgress(assignment)} 
+                            color="success"
+                            size="sm"
+                          />
+                        </div>
+                      )}
+                      <Button
+                        startContent={<FiEye />}
+                        color="primary"
+                        variant="light"
+                        onClick={() => handleViewAssignment(assignment)}
+                        className="w-full sm:w-auto"
+                      >
+                        Lihat Detail
+                      </Button>
+                    </div>
+                  </div>
+                </CardBody>
+              </Card>
+            ))}
           </div>
         )}
       </PageContainer>

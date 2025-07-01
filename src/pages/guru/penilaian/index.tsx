@@ -97,27 +97,8 @@ const TeacherGradingPage: React.FC = () => {
   const [scoreValue, setScoreValue] = useState<number | "">(""); 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Fetch data
-  const fetchData = useCallback(async () => {
-    try {
-      setLoading(true);
-      const response = await getGuruMataPelajaran({ limit: 100 });
-      
-      if (response && response.data && response.data.length > 0) {
-        setMataPelajaranList(response.data);
-        await fetchAssignmentsAndSubmissions(response.data);
-      } else {
-        setLoading(false);
-      }
-    } catch (err: any) {
-      console.error("Error fetching data:", err);
-      setError(err.message || "Failed to load data");
-      setShowError(true);
-      setLoading(false);
-    }
-  }, []);
-
-  const fetchAssignmentsAndSubmissions = async (mataPelajaranData: ExtendedMataPelajaran[]) => {
+  // Define fetchAssignmentsAndSubmissions before using it in fetchData
+  const fetchAssignmentsAndSubmissions = useCallback(async (mataPelajaranData: ExtendedMataPelajaran[]) => {
     try {
       let allSubmissions: SubmissionWithUserData[] = [];
       let allAssignments: ExtendedAssignment[] = [];
@@ -199,7 +180,27 @@ const TeacherGradingPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [queryAssignmentId, setAssignments, setAssignmentsByMataPelajaran, setError, setLoading, setSelectedAssignment, setSelectedMataPelajaran, setShowError, setSubmissions]);
+
+  // Fetch data
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await getGuruMataPelajaran({ limit: 100 });
+      
+      if (response && response.data && response.data.length > 0) {
+        setMataPelajaranList(response.data);
+        await fetchAssignmentsAndSubmissions(response.data);
+      } else {
+        setLoading(false);
+      }
+    } catch (err: any) {
+      console.error("Error fetching data:", err);
+      setError(err.message || "Failed to load data");
+      setShowError(true);
+      setLoading(false);
+    }
+  }, [fetchAssignmentsAndSubmissions]);
   
   // Initial data fetch
   useEffect(() => {

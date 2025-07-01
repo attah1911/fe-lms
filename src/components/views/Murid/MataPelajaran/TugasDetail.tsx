@@ -165,6 +165,22 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
   const [hasSubmitted, setHasSubmitted] = useState<boolean>(false);
   const [initialLoadComplete, setInitialLoadComplete] = useState<boolean>(false);
 
+  // Fungsi untuk menyimpan data submission ke storage
+  const saveSubmissionToStorage = useCallback((submissionData: Submission) => {
+    if (!tugasId || !session?.user?.id) return;
+    
+    const submissionKey = `submission_${tugasId}_${session.user.id}`;
+    const dataToStore = JSON.stringify(submissionData);
+    
+    // Simpan ke localStorage untuk persistensi jangka panjang
+    localStorage.setItem(submissionKey, 'submitted');
+    localStorage.setItem(`${submissionKey}_data`, dataToStore);
+    
+    // Simpan ke sessionStorage untuk akses lebih cepat selama sesi
+    sessionStorage.setItem(submissionKey, 'submitted');
+    sessionStorage.setItem(`${submissionKey}_data`, dataToStore);
+  }, [tugasId, session?.user?.id]);
+
   // Define fetchData before the useEffect that uses it
   const fetchData = useCallback(async () => {
     if (!tugasId || !mataPelajaranId || !session?.user) return;
@@ -344,7 +360,7 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
     } finally {
       setLoading(false);
     }
-  }, [tugasId, mataPelajaranId, session?.user, mySubmissions.length, initialLoadComplete]);
+  }, [tugasId, mataPelajaranId, session?.user, mySubmissions.length, initialLoadComplete, saveSubmissionToStorage]);
 
   useEffect(() => {
     if (tugasId && mataPelajaranId) {
@@ -371,21 +387,7 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
     }
   }, [tugasId, mataPelajaranId, session?.user?.id, mySubmissions.length, fetchData]);
   
-  // Fungsi untuk menyimpan data submission ke storage
-  const saveSubmissionToStorage = (submissionData: Submission) => {
-    if (!tugasId || !session?.user?.id) return;
-    
-    const submissionKey = `submission_${tugasId}_${session.user.id}`;
-    const dataToStore = JSON.stringify(submissionData);
-    
-    // Simpan ke localStorage untuk persistensi jangka panjang
-    localStorage.setItem(submissionKey, 'submitted');
-    localStorage.setItem(`${submissionKey}_data`, dataToStore);
-    
-    // Simpan ke sessionStorage untuk akses lebih cepat selama sesi
-    sessionStorage.setItem(submissionKey, 'submitted');
-    sessionStorage.setItem(`${submissionKey}_data`, dataToStore);
-  };
+
 
   // Fungsi untuk menghapus data submission dari storage
   const clearSubmissionFromStorage = () => {
