@@ -93,25 +93,25 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
     async redirect({ url, baseUrl }) {
-      // Always use environment.FRONTEND_URL as the base URL
-      const frontendUrl = environment.FRONTEND_URL;
-
-      // For sign-out, always redirect to login page
-      if (url.includes('signout') || url.includes('logout')) {
-        return `${frontendUrl}/auth/login`;
+      // First check if this is a relative URL
+      if (url.startsWith('/')) {
+        // For sign-out, redirect to login page
+        if (url.includes('/api/auth/signout') || url.includes('/logout')) {
+          return `${baseUrl}/auth/login`;
+        }
+        
+        // For other relative paths, append to baseUrl
+        return `${baseUrl}${url}`;
       }
-
-      // Handle relative URLs
-      if (url.startsWith("/")) {
-        return `${frontendUrl}${url}`;
-      }
-
-      // Handle absolute URLs that match our frontend
-      if (url.startsWith(frontendUrl)) {
+      
+      // Handle absolute URLs
+      // Allow URLs from the same origin as baseUrl
+      if (url.startsWith(baseUrl)) {
         return url;
       }
-
-      return frontendUrl;
+      
+      // Default fallback - return to homepage
+      return baseUrl;
     },
   },
   session: {
