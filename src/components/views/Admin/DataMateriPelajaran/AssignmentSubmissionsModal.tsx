@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Modal, 
   ModalContent, 
@@ -42,7 +42,7 @@ const AssignmentSubmissionsModal: React.FC<AssignmentSubmissionsModalProps> = ({
   const [feedbackText, setFeedbackText] = useState<string>('');
   const [activeFeedbackSubmissionId, setActiveFeedbackSubmissionId] = useState<string | null>(null);
 
-  const fetchAssignmentDetails = async () => {
+  const fetchAssignmentDetails = useCallback(async () => {
     try {
       setLoading(true);
       const response = await getAssignmentById(assignmentId);
@@ -54,7 +54,7 @@ const AssignmentSubmissionsModal: React.FC<AssignmentSubmissionsModalProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [assignmentId]);
 
   useEffect(() => {
     if (isOpen && assignmentId) {

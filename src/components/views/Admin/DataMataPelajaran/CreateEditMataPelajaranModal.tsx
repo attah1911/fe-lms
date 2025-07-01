@@ -1,4 +1,4 @@
-import React, { useEffect, Key, useState } from "react";
+import React, { useEffect, Key, useState, useCallback } from "react";
 import { Input, Textarea, Button, Select, SelectItem } from "@nextui-org/react";
 import { MataPelajaran, TeacherOption, kategoriList, tingkatKelasList, TeacherData } from "../../../../types/MataPelajaran";
 import BaseModal from "../../../commons/Modal/BaseModal";
@@ -47,11 +47,11 @@ const CreateEditMataPelajaranModal = ({
   const [isAutoTitleEnabled, setIsAutoTitleEnabled] = useState(true);
 
   // Find selected teacher name
-  const getTeacherName = (id: string | TeacherData): string => {
+  const getTeacherName = useCallback((id: string | TeacherData): string => {
     const teacherId = typeof id === 'object' ? id._id : id;
     const teacher = teachers.find(t => t._id === teacherId);
     return teacher ? teacher.fullName : '';
-  };
+  }, [teachers]);
 
   // Auto generate title when values change
   useEffect(() => {

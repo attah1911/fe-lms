@@ -1,4 +1,5 @@
 import React, { useRef } from "react";
+import Image from "next/image";
 
 interface ProfilePictureProps {
   src: string;
@@ -19,13 +20,18 @@ const ProfilePicture: React.FC<ProfilePictureProps> = ({ src, alt, uploading, on
       className="relative cursor-pointer group" 
       onClick={handleClick}
     >
-      <img
-        src={(!src || src === "user.jpg") 
-          ? "/images/general/icon_default.png"
-          : src}
-        alt={alt}
-        className="w-40 h-40 rounded-full object-cover border-4 border-white shadow-lg transition duration-300 group-hover:opacity-90"
-      />
+      <div className="w-40 h-40 relative rounded-full border-4 border-white shadow-lg">
+        <Image
+          src={(!src || src === "user.jpg") 
+            ? "/images/general/icon_default.png"
+            : src}
+          alt={alt}
+          fill
+          sizes="160px"
+          style={{ objectFit: "cover" }}
+          className="rounded-full transition duration-300 group-hover:opacity-90"
+        />
+      </div>
       {/* Edit Icon Overlay */}
       <div className="absolute bottom-2 right-2 bg-blue-600 rounded-full p-2 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300">
         <svg className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">

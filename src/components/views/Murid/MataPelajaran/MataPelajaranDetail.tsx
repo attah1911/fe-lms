@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { useSession } from "next-auth/react";
 import { Card, CardBody, Spinner, Button, Chip, Divider, Tabs, Tab } from '@nextui-org/react';
@@ -142,7 +142,7 @@ const MataPelajaranDetail: React.FC<MataPelajaranDetailProps> = ({ id }) => {
   }, [id, isEnrolled]);
   
   // Define fetchAssignments before using it in the useEffect
-  const fetchAssignments = async () => {
+  const fetchAssignments = useCallback(async () => {
     if (!id || materiList.length === 0) return;
     
     try {
@@ -156,7 +156,7 @@ const MataPelajaranDetail: React.FC<MataPelajaranDetailProps> = ({ id }) => {
     } finally {
       setLoadingAssignments(false);
     }
-  };
+  }, [id, materiList]);
   
   // Separate effect to handle tab changes and load specific data
   useEffect(() => {

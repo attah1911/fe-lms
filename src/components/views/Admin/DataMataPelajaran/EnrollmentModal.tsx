@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { 
   Modal, 
   ModalContent, 
@@ -46,7 +46,7 @@ const EnrollmentModal: React.FC<EnrollmentModalProps> = ({
   const [success, setSuccess] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const fetchEnrolledStudents = async () => {
+  const fetchEnrolledStudents = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -61,9 +61,9 @@ const EnrollmentModal: React.FC<EnrollmentModalProps> = ({
       setEnrolledStudents([]); // Set to empty array on error
       setLoading(false);
     }
-  };
+  }, [mataPelajaranId]);
 
-  const fetchAvailableStudents = async () => {
+  const fetchAvailableStudents = useCallback(async () => {
     try {
       setLoading(true);
       const response = await getStudents({ limit: 100 });
@@ -82,7 +82,7 @@ const EnrollmentModal: React.FC<EnrollmentModalProps> = ({
       console.error("Error fetching available students:", err);
       setLoading(false);
     }
-  };
+  }, [enrolledStudents]);
 
   useEffect(() => {
     if (isOpen && mataPelajaranId) {

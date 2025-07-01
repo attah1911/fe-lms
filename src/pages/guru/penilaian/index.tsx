@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import { 
@@ -98,7 +98,7 @@ const TeacherGradingPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Fetch data
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const response = await getGuruMataPelajaran({ limit: 100 });
@@ -115,7 +115,7 @@ const TeacherGradingPage: React.FC = () => {
       setShowError(true);
       setLoading(false);
     }
-  };
+  }, []);
 
   const fetchAssignmentsAndSubmissions = async (mataPelajaranData: ExtendedMataPelajaran[]) => {
     try {

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { useSession } from "next-auth/react";
 import { Card, CardBody, CardHeader, CardFooter, Spinner, Button, Chip, Textarea, Divider, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from '@nextui-org/react';
@@ -166,7 +166,7 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
   const [initialLoadComplete, setInitialLoadComplete] = useState<boolean>(false);
 
   // Define fetchData before the useEffect that uses it
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     if (!tugasId || !mataPelajaranId || !session?.user) return;
     
     try {
@@ -344,7 +344,7 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
     } finally {
       setLoading(false);
     }
-  };
+  }, [tugasId, mataPelajaranId, session?.user, mySubmissions.length, initialLoadComplete]);
 
   useEffect(() => {
     if (tugasId && mataPelajaranId) {

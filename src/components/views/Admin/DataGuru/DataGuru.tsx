@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import Image from "next/image";
 import PageContainer from "../../../commons/PageContainer";
 import PageHeader from "../../../commons/PageHeader";
 import { FiEdit, FiPlus, FiChevronLeft, FiChevronRight } from "react-icons/fi";
@@ -286,10 +287,12 @@ const DataGuru: React.FC = () => {
             {/* Empty State */}
             {teachers.length === 0 && !loading && pagination.total === 0 && (
               <div className="text-center py-12">
-                <img
+                <Image
                   src="https://images.pexels.com/photos/3184291/pexels-photo-3184291.jpeg"
                   alt="No data"
-                  className="mx-auto h-48 w-auto rounded-lg shadow-md mb-4"
+                  width={384}
+                  height={192}
+                  className="mx-auto rounded-lg shadow-md mb-4"
                 />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">
                   Tidak ada data

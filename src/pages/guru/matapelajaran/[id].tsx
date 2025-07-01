@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import { Spinner } from "@nextui-org/react";
@@ -48,25 +48,14 @@ const MataPelajaranDetail: React.FC = () => {
   const [enrolledStudents, setEnrolledStudents] = useState<EnrolledStudent[]>([]);
   const [activeTab, setActiveTab] = useState<string>("materi");
   
-  // Define fetchAssignments and fetchEnrolledStudents before the useEffect that uses them
-  const fetchAssignments = async () => {
-    if (!id || materiList.length === 0) return;
-    
-    try {
-      setLoadingAssignments(true);
-      // Get assignments for the first materi (as an example)
-      // In production you might want to get all assignments for all materis
-      const firstMateriId = materiList[0]._id;
-      const response = await getAssignmentsByMateriId(firstMateriId);
-      setAssignments(response.data);
-    } catch (err: any) {
-      console.error("Error fetching assignments:", err);
-    } finally {
-      setLoadingAssignments(false);
+  useEffect(() => {
+    // Check for tab parameter in URL
+    if (router.query.tab) {
+      setActiveTab(router.query.tab as string);
     }
-  };
-  
-  const fetchEnrolledStudents = async () => {
+  }, [router.query]);
+
+  const fetchEnrolledStudents = useCallback(async () => {
     if (!id) return;
     
     try {
@@ -82,14 +71,24 @@ const MataPelajaranDetail: React.FC = () => {
     } finally {
       setLoadingStudents(false);
     }
-  };
+  }, [id]);
 
-  useEffect(() => {
-    // Check for tab parameter in URL
-    if (router.query.tab) {
-      setActiveTab(router.query.tab as string);
+  const fetchAssignments = useCallback(async () => {
+    if (!id || materiList.length === 0) return;
+    
+    try {
+      setLoadingAssignments(true);
+      // Get assignments for the first materi (as an example)
+      // In production you might want to get all assignments for all materis
+      const firstMateriId = materiList[0]._id;
+      const response = await getAssignmentsByMateriId(firstMateriId);
+      setAssignments(response.data);
+    } catch (err: any) {
+      console.error("Error fetching assignments:", err);
+    } finally {
+      setLoadingAssignments(false);
     }
-  }, [router.query]);
+  }, [id, materiList]);
 
   useEffect(() => {
     const fetchData = async () => {

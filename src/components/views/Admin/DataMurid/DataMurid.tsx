@@ -8,6 +8,7 @@ import NotificationAlert from "../../../commons/NotificationAlert/NotificationAl
 import CreateEditStudentModal from "./CreateEditStudentModal";
 import DeleteConfirmationModal from "../DataAkun/DeleteConfirmationModal";
 import { Button } from "@nextui-org/react";
+import Image from "next/image";
 import { Student } from "../../../../types/Student";
 
 interface PaginationData {
@@ -290,11 +291,15 @@ const DataMurid: React.FC = () => {
             {/* Empty State */}
             {students.length === 0 && !loading && pagination.total === 0 && (
               <div className="text-center py-12">
-                <img
-                  src="https://images.pexels.com/photos/3184291/pexels-photo-3184291.jpeg"
-                  alt="No data"
-                  className="mx-auto h-48 w-auto rounded-lg shadow-md mb-4"
-                />
+                <div className="mx-auto h-48 w-auto rounded-lg shadow-md mb-4 relative">
+                  <Image
+                    src="https://images.pexels.com/photos/3184291/pexels-photo-3184291.jpeg"
+                    alt="No data"
+                    fill
+                    style={{ objectFit: "cover" }}
+                    className="rounded-lg"
+                  />
+                </div>
                 <h3 className="text-lg font-medium text-gray-900 mb-2">
                   Tidak ada data
                 </h3>

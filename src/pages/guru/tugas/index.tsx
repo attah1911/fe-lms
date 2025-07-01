@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import { 
@@ -54,7 +54,7 @@ const TeacherAssignmentsPage: React.FC = () => {
   const [loadingMateri, setLoadingMateri] = useState(false);
   
   // Fetch all mata pelajaran for the teacher
-  const fetchMataPelajaran = async () => {
+  const fetchMataPelajaran = useCallback(async () => {
     try {
       setLoading(true);
       const response = await getGuruMataPelajaran({ limit: 100 });
@@ -75,10 +75,10 @@ const TeacherAssignmentsPage: React.FC = () => {
       setShowError(true);
       setLoading(false);
     }
-  };
+  }, []);
 
   // Fetch materi for each mata pelajaran
-  const fetchMateriForMataPelajaran = async (mataPelajaranData: ExtendedMataPelajaran[]) => {
+  const fetchMateriForMataPelajaran = useCallback(async (mataPelajaranData: ExtendedMataPelajaran[]) => {
     setLoadingMateri(true);
     const updatedMataPelajaranList: ExtendedMataPelajaran[] = [];
     
@@ -109,10 +109,10 @@ const TeacherAssignmentsPage: React.FC = () => {
     
     // Now fetch assignments using the updated list with materi data
     await fetchAssignmentsForMataPelajaran(updatedMataPelajaranList);
-  };
+  }, []);
   
   // Separate function to fetch assignments for specific mata pelajaran list
-  const fetchAssignmentsForMataPelajaran = async (mataPelajaranData: ExtendedMataPelajaran[]) => {
+  const fetchAssignmentsForMataPelajaran = useCallback(async (mataPelajaranData: ExtendedMataPelajaran[]) => {
     try {
       let allAssignments: ExtendedAssignment[] = [];
       
@@ -156,7 +156,7 @@ const TeacherAssignmentsPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
   
   // Initial data fetch
   useEffect(() => {
