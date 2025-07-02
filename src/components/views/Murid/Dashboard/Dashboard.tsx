@@ -19,6 +19,7 @@ import { IProfile } from "../../../../types/Profile";
 import { format } from "date-fns";
 import { id } from "date-fns/locale";
 import { PaginationMeta } from "../../../../types/common";
+import NoteCard from "../../../commons/NoteCard";
 
 // Menggunakan interface Notification dan Assignment dari student.service.ts
 
@@ -601,20 +602,26 @@ const Dashboard: React.FC = () => {
 
   return (
     <PageContainer>
-      {/* Header section with responsive design */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center -mt-2 mb-4">
-        <div className="flex-1 mb-2 sm:mb-0">
-        <PageHeader 
-          title="Dashboard" 
-          description="Selamat datang di halaman Dashboard Murid" 
-        />
+      {/* Header section with responsive design - Mobile matches Guru, Desktop stays the same */}
+      <div className="flex flex-row justify-between items-center mb-6 md:flex-row md:items-center md:mb-6">
+        <div className="flex-1">
+          <PageHeader 
+            title="Dashboard Murid" 
+            description="Selamat datang di halaman Dashboard Murid" 
+          />
         </div>
-        <div className="self-end sm:self-auto flex items-center gap-4 pr-1 sm:pr-6 mt-0 sm:mt-0">
+        <div className="flex items-center gap-4 pr-2 md:pr-2">
           <Popover 
             placement="bottom-end" 
             showArrow={true}
             isOpen={isNotificationOpen}
-            onOpenChange={setIsNotificationOpen}
+            onOpenChange={(open) => {
+              setIsNotificationOpen(open);
+              if (open) {
+                // Refresh notifications when popover opens
+                fetchNotifications();
+              }
+            }}
           >
             <PopoverTrigger>
               <div className="relative inline-block">
@@ -662,7 +669,7 @@ const Dashboard: React.FC = () => {
 
       {/* Notifications */}
       {error && (
-        <div className="mb-4 sm:mb-6">
+        <div className="mb-6 md:mb-4">
           <NotificationAlert
             type="error"
             message={error}
@@ -672,13 +679,13 @@ const Dashboard: React.FC = () => {
       )}
 
       {successMessage && (
-        <div className="mb-4 sm:mb-6">
+        <div className="mb-6 md:mb-4">
           <NotificationAlert
             type="success"
             message={successMessage}
             onClose={() => setSuccessMessage(null)}
-        />
-      </div>
+          />
+        </div>
       )}
 
       {/* Main Content */}
@@ -688,8 +695,36 @@ const Dashboard: React.FC = () => {
         </div>
       ) : (
         <>
-          {/* User Profile Card and Statistics */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-5 mb-3 sm:mb-5">
+          {/* Mobile view: User Profile Card separately, similar to Guru dashboard */}
+          <div className="block md:hidden mb-6">
+            <UserProfileCard 
+              user={profileData ? {
+                ...session.user,
+                profilePicture: profileData.profilePicture,
+                fullName: profileData.fullName,
+                email: profileData.email
+              } : session.user} 
+            />
+          </div>
+
+          {/* Mobile: Statistics Cards in Guru-like layout */}
+          <div className="grid grid-cols-1 gap-4 mb-6 md:hidden">
+            <StatisticsCard
+              title="Mata Pelajaran"
+              value={enrolledSubjects.length}
+              icon={<FiBook size={24} />}
+              color="primary"
+            />
+            <StatisticsCard
+              title="Tugas Aktif"
+              value={pendingAssignments.length}
+              icon={<FiFileText size={24} />}
+              color="warning"
+            />
+          </div>
+
+          {/* Desktop: Original layout with UserProfileCard and stats side by side */}
+          <div className="hidden md:grid md:grid-cols-3 md:gap-5 md:mb-5">
             <div className="col-span-1">
               <UserProfileCard 
                 user={profileData ? {
@@ -700,139 +735,97 @@ const Dashboard: React.FC = () => {
                 } : session.user} 
               />
             </div>
-            <div className="col-span-1 md:col-span-2">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            <div className="col-span-2">
+              <div className="grid grid-cols-2 gap-4">
                 <StatisticsCard 
                   title="Mata Pelajaran" 
-                  count={enrolledSubjects.length} 
-                  icon={<FiBook size={18} className="sm:text-xl" />} 
+                  value={enrolledSubjects.length} 
+                  icon={<FiBook size={18} className="text-xl" />} 
                   color="primary"
                 />
                 <StatisticsCard 
                   title="Tugas Aktif" 
-                  count={pendingAssignments.length} 
-                  icon={<FiFileText size={18} className="sm:text-xl" />} 
+                  value={pendingAssignments.length} 
+                  icon={<FiFileText size={18} className="text-xl" />} 
                   color="warning"
                 />
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-5 mb-3 sm:mb-5">
+          {/* Notes and Assignments section - responsive styling */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5 mb-6 md:mb-5">
             {/* Notes/Todos Section */}
             <Card>
-              <CardBody className="p-3 sm:p-4">
-                <div className="flex items-center justify-between mb-2 sm:mb-3">
-                <div className="flex items-center">
-                    <FiList size={20} className="text-primary mr-2" />
-                    <h3 className="text-base sm:text-lg font-semibold">Catatan Saya</h3>
+              <CardBody className="p-4 md:p-3">
+                <div className="flex items-center justify-between mb-4 md:mb-3">
+                  <div className="flex items-center">
+                    <FiList size={24} className="text-primary mr-2 md:text-xl" />
+                    <h3 className="text-lg font-semibold md:text-base">Catatan Saya</h3>
                   </div>
                   <Button 
                     color="primary" 
                     variant="light" 
-                    startContent={<FiPlus size={16} />}
+                    startContent={<FiPlus className="md:text-sm" />}
                     onClick={handleAddTodo}
                     size="sm"
-                    className="min-w-0 px-2 sm:px-3 text-xs sm:text-sm"
+                    className="md:min-w-0 md:px-3 md:text-xs"
                   >
-                    <span className="hidden xs:inline">Tambah Catatan</span>
-                    <span className="inline xs:hidden">Tambah</span>
+                    <span className="block md:hidden">Tambah Catatan</span>
+                    <span className="hidden md:block">Tambah</span>
                   </Button>
                 </div>
                 
                 {loadingTodos ? (
-                  <div className="flex justify-center py-4 sm:py-6">
+                  <div className="flex justify-center py-8 md:py-4">
                     <Spinner size="sm" />
                   </div>
                 ) : todos.length === 0 ? (
-                  <p className="text-center text-gray-500 py-2 sm:py-3 text-sm sm:text-base">
-                    Belum ada Notes. Klik &quot;Tambah&quot; untuk membuat baru.
+                  <p className="text-center text-gray-500 py-4 md:py-2 md:text-sm">
+                    <span className="block md:hidden">Belum ada Catatan yang tersedia. Klik &quot;Tambah Catatan&quot; untuk membuat Note baru.</span>
+                    <span className="hidden md:block">Belum ada Notes. Klik &quot;Tambah&quot; untuk membuat baru.</span>
                   </p>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-3 md:space-y-2">
                     {todos.map(todo => (
-                      <div 
-                        key={todo._id} 
-                        className={`flex items-start p-2 sm:p-3 rounded-md border ${
-                          todo.completed ? 'bg-gray-50 border-gray-200' : 'bg-white border-gray-300'
-                        }`}
-                      >
-                        <div className="p-1"> {/* Added padding to increase hit area */}
-                          <Checkbox 
-                            isSelected={todo.completed}
-                            onValueChange={() => handleToggleTodoStatus(todo._id!)}
-                            className="mt-1 scale-110" /* Increased scale by 10% */
-                            size="md" /* Changed from sm to md */
-                            color="success"
-                          />
-                        </div>
-                        <div className="ml-2 sm:ml-3 flex-1">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1 pr-2">
-                              <p className={`text-sm sm:text-base font-medium ${todo.completed ? 'line-through text-gray-500' : ''}`}>
-                                {todo.title}
-                              </p>
-                              {todo.description && (
-                                <p className={`text-xs sm:text-sm mt-1 ${todo.completed ? 'text-gray-400' : 'text-gray-600'}`}>
-                                  {todo.description}
-                                </p>
-                              )}
-                              {todo.dueDate && (
-                                <div className="flex items-center mt-1 text-xs text-gray-500">
-                                  <FiClock size={10} className="mr-1" />
-                                  <span>{formatDate(todo.dueDate)}</span>
-                                </div>
-                              )}
-                            </div>
-                            <div className="flex space-x-1 sm:space-x-2">
-                              <Button 
-                                isIconOnly
-                                size="sm" 
-                                color="primary" 
-                                variant="light"
-                                onClick={() => handleEditTodo(todo)}
-                                className="h-6 w-6 sm:h-8 sm:w-8 min-w-0"
-                              >
-                                <FiEdit2 size={14} />
-                              </Button>
-                              <Button 
-                                isIconOnly
-                                size="sm" 
-                                color="danger" 
-                                variant="light"
-                                onClick={() => handleConfirmDelete(todo._id!)}
-                                className="h-6 w-6 sm:h-8 sm:w-8 min-w-0"
-                              >
-                                <FiTrash2 size={14} />
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+                      <NoteCard
+                        key={todo._id}
+                        note={{
+                          _id: todo._id,
+                          title: todo.title,
+                          description: todo.description,
+                          dueDate: todo.dueDate,
+                          completed: todo.completed
+                        }}
+                        onToggleStatus={handleToggleTodoStatus}
+                        onEdit={handleEditTodo}
+                        onDelete={handleConfirmDelete}
+                        formatDate={formatDate}
+                      />
                     ))}
                   </div>
                 )}
               </CardBody>
             </Card>
 
-            {/* Pending Assignments */}
+            {/* Pending Assignments - with responsive styling */}
             <Card>
-              <CardBody className="p-3 sm:p-4">
-                <div className="flex items-center justify-between mb-2 sm:mb-3">
+              <CardBody className="p-4 md:p-3">
+                <div className="flex items-center justify-between mb-4 md:mb-3">
                   <div className="flex items-center">
-                    <FiClock size={20} className="text-warning mr-2" />
-                    <h3 className="text-base sm:text-lg font-semibold">Tugas Aktif</h3>
-                </div>
-                <Button 
-                  color="primary" 
-                  variant="light" 
-                  size="sm"
+                    <FiClock size={24} className="text-warning mr-2 md:text-xl" />
+                    <h3 className="text-lg font-semibold md:text-base">Tugas Aktif</h3>
+                  </div>
+                  <Button 
+                    color="primary" 
+                    variant="light" 
+                    size="sm"
                     onClick={() => router.push('/murid/tugas')}
-                    className="min-w-0 px-2 sm:px-3 text-xs sm:text-sm"
-                >
-                  Lihat Semua
-                </Button>
-              </div>
+                    className="md:min-w-0 md:px-3 md:text-xs"
+                  >
+                    Lihat Semua
+                  </Button>
+                </div>
                 <div>
                   {pendingAssignments.length > 0 ? (
                     <div className="space-y-2 sm:space-y-3">

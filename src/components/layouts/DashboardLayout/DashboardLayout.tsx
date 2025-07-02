@@ -32,21 +32,23 @@ const DashboardLayout = (props: PropTypes) => {
           }
           isOpen={open}
         />
-        <div className="h-screen w-full overflow-y-auto p-8">
+        <div className="h-screen w-full overflow-y-auto p-4 pt-2 md:p-4 md:pt-0">
           <Navbar
-            className="flex justify-between bg-transparent px-0"
+            className="flex justify-between bg-transparent px-0 max-w-full"
             isBlurred={false}
-            classNames={{wrapper: "p-0"}}
+            classNames={{wrapper: "p-0 max-w-full"}}
             position="static"
           >
-            <h1 className="text-3xl font-bold">{title}</h1>
-            <NavbarMenuToggle
-              aria-label={open ? "Tutup Menu" : "Buka Menu"}
-              onClick={() => setOpen(!open)}
-              className="lg:hidden"
-            />
+            <h1 className="text-2xl md:text-3xl font-bold">{title}</h1>
+            <div className="flex justify-end">
+              <NavbarMenuToggle
+                aria-label={open ? "Tutup Menu" : "Buka Menu"}
+                onClick={() => setOpen(!open)}
+                className="lg:hidden"
+              />
+            </div>
           </Navbar>
-          <p className="mb-4 text-small">{description}</p>
+          <p className="mb-2 md:mb-2 text-small">{description}</p>
           {children}
         </div>
       </div>

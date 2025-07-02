@@ -19,6 +19,7 @@ import { IProfile } from "../../../../types/Profile";
 import { useRouter } from "next/router";
 import { format } from "date-fns";
 import { id } from "date-fns/locale";
+import NoteCard from "../../../commons/NoteCard";
 
 interface Subject {
   _id: string;
@@ -797,7 +798,7 @@ const Dashboard: React.FC = () => {
             description="Selamat datang di halaman Dashboard Guru" 
           />
         </div>
-        <div className="flex items-center gap-4 pr-6">
+        <div className="flex items-center gap-4 pr-2">
           <Popover 
             placement="bottom-end" 
             showArrow={true}
@@ -946,58 +947,20 @@ const Dashboard: React.FC = () => {
                 ) : (
                   <div className="space-y-3">
                     {todos.map(todo => (
-                      <div 
-                        key={todo._id} 
-                        className={`flex items-start p-3 rounded-md border ${
-                          todo.completed ? 'bg-gray-50 border-gray-200' : 'bg-white border-gray-300'
-                        }`}
-                      >
-                        <Checkbox 
-                          isSelected={todo.completed}
-                          onValueChange={() => handleToggleTodoStatus(todo._id!)}
-                          className="mt-1"
-                        />
-                        <div className="ml-3 flex-1">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <p className={`font-medium ${todo.completed ? 'line-through text-gray-500' : ''}`}>
-                                {todo.title}
-                              </p>
-                              {todo.description && (
-                                <p className={`text-sm mt-1 ${todo.completed ? 'text-gray-400' : 'text-gray-600'}`}>
-                                  {todo.description}
-                                </p>
-                              )}
-                              {todo.dueDate && (
-                                <div className="flex items-center mt-1 text-xs text-gray-500">
-                                  <FiClock size={12} className="mr-1" />
-                                  <span>{formatDate(todo.dueDate)}</span>
-                                </div>
-                              )}
-                            </div>
-                            <div className="flex space-x-2">
-                              <Button 
-                                isIconOnly
-                                size="sm" 
-                                color="primary" 
-                                variant="light"
-                                onClick={() => handleEditTodo(todo)}
-                              >
-                                <FiEdit2 size={16} />
-                              </Button>
-                              <Button 
-                                isIconOnly
-                                size="sm" 
-                                color="danger" 
-                                variant="light"
-                                onClick={() => handleConfirmDelete(todo._id!)}
-                              >
-                                <FiTrash2 size={16} />
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+                      <NoteCard
+                        key={todo._id}
+                        note={{
+                          _id: todo._id,
+                          title: todo.title,
+                          description: todo.description,
+                          dueDate: todo.dueDate,
+                          completed: todo.completed
+                        }}
+                        onToggleStatus={handleToggleTodoStatus}
+                        onEdit={handleEditTodo}
+                        onDelete={handleConfirmDelete}
+                        formatDate={formatDate}
+                      />
                     ))}
                   </div>
                 )}

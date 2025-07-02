@@ -306,7 +306,7 @@ const Dashboard: React.FC = () => {
   return (
     <PageContainer>
       <PageHeader 
-        title="Dashboard" 
+        title="Dashboard Admin" 
         description="Selamat datang di halaman Dashboard Admin" 
       />
 

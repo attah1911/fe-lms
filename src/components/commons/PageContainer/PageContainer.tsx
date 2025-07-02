@@ -8,8 +8,10 @@ interface PageContainerProps {
 
 const PageContainer: React.FC<PageContainerProps> = ({ children, className }) => {
   return (
-    <div className={cn("pt-3 pb-6 px-6", className)}>
-      {children}
+    <div className={cn("pt-1 pb-4 px-3 md:pt-1 md:pb-6 md:px-6 overflow-hidden w-full", className)}>
+      <div className="max-w-full">
+        {children}
+      </div>
     </div>
   );
 };

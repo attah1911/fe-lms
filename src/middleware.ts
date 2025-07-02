@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { JWTExtended } from "./types/Auth";
 import { getToken } from "next-auth/jwt";
 import environment from "./config/environment";
-// testt
+// test
 
 // Helper function to get dashboard URL based on role
 function getDashboardUrl(role?: string): string {

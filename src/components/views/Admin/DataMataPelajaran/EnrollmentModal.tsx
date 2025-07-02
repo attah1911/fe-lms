@@ -175,8 +175,8 @@ const EnrollmentModal: React.FC<EnrollmentModalProps> = ({
     <Modal 
       isOpen={isOpen} 
       onClose={onClose}
-      backdrop="blur"
-      placement="center"
+      backdrop="opaque"
+      placement="bottom"
       size="3xl"
       scrollBehavior="inside"
     >
