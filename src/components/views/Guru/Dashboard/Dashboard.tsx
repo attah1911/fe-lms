@@ -87,7 +87,6 @@ const Dashboard: React.FC = () => {
     current: 1
   });
   
-  // Todo state
   const [todos, setTodos] = useState<Todo[]>([]);
   const [loadingTodos, setLoadingTodos] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -100,7 +99,6 @@ const Dashboard: React.FC = () => {
   const [todoDescription, setTodoDescription] = useState('');
   const [todoDueDate, setTodoDueDate] = useState('');
   
-  // Notification state
   const [notifications, setNotifications] = useState<NotificationType[]>([]);
   const [loadingNotifications, setLoadingNotifications] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -108,7 +106,6 @@ const Dashboard: React.FC = () => {
   const [notificationHasMore, setNotificationHasMore] = useState(true);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   
-  // Fetch todos
   const fetchTodos = async () => {
     try {
       setLoadingTodos(true);
@@ -126,17 +123,14 @@ const Dashboard: React.FC = () => {
       try {
         setLoading(true);
         
-        // Fetch user profile data
         const profileResponse = await authServices.getProfile();
         setProfileData(profileResponse.data.data);
         
-        // Fetch guru stats
         try {
           const guruStats = await statsService.getGuruStats();
           setStats(guruStats);
         } catch (statsErr) {
           console.error("Error fetching guru stats:", statsErr);
-          // Fallback to fetch subjects only
           const mataPelajaranResponse = await getGuruMataPelajaran({ page: 1, limit: 6 });
           
           setStats({
@@ -147,10 +141,8 @@ const Dashboard: React.FC = () => {
           });
         }
         
-        // Fetch todos
         await fetchTodos();
         
-        // Fetch notifications and unread count
         fetchNotifications(1);
         
         setError(null);
@@ -167,7 +159,6 @@ const Dashboard: React.FC = () => {
     }
   }, [session]);
 
-  // Reset form fields
   const resetTodoForm = () => {
     setTodoTitle('');
     setTodoDescription('');
@@ -176,13 +167,11 @@ const Dashboard: React.FC = () => {
     setIsEdit(false);
   };
 
-  // Open modal for adding new todo
   const handleAddTodo = () => {
     resetTodoForm();
     onOpen();
   };
 
-  // Open modal for editing todo
   const handleEditTodo = (todo: Todo) => {
     setCurrentTodo(todo);
     setTodoTitle(todo.title);
@@ -192,13 +181,11 @@ const Dashboard: React.FC = () => {
     onOpen();
   };
 
-  // Open confirm modal for deleting todo
   const handleConfirmDelete = (id: string) => {
     setTodoToDelete(id);
     onOpenDeleteModal();
   };
 
-  // Delete todo
   const handleDeleteTodo = async () => {
     if (!todoToDelete) return;
     
@@ -214,7 +201,6 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // Toggle todo completed status
   const handleToggleTodoStatus = async (id: string) => {
     try {
       await todoService.toggleTodoStatus(id);
@@ -224,7 +210,6 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // Save todo (create or update)
   const handleSaveTodo = async () => {
     try {
       if (!todoTitle) {
@@ -256,7 +241,6 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // Format date
   const formatDate = (dateString?: string | Date) => {
     if (!dateString) return '-';
     try {
@@ -266,7 +250,6 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // Rest of functions remain the same
   const handleSearch = async (searchTerm: string) => {
     try {
       setIsSearching(true);
@@ -337,7 +320,6 @@ const Dashboard: React.FC = () => {
   };
 
   const renderSubjects = () => {
-    // If searching, show search results
     if (searchResults !== null) {
       if (searchResults.length === 0) {
         return (
@@ -369,7 +351,6 @@ const Dashboard: React.FC = () => {
       );
     }
 
-    // Otherwise, show recent subjects from stats
     if (!stats?.recentSubjects || stats.recentSubjects.length === 0) {
       return (
         <Card>
@@ -400,7 +381,6 @@ const Dashboard: React.FC = () => {
     );
   };
 
-  // Render pagination
   const renderPagination = () => {
     if (!searchResults || pagination.total === 0) return null;
 
@@ -493,12 +473,10 @@ const Dashboard: React.FC = () => {
     );
   };
 
-  // Fetch notifications
   const fetchNotifications = async (page = 1) => {
     try {
       setLoadingNotifications(true);
       
-      // Get unread count
       try {
         const count = await notificationService.getUnreadCount();
         setUnreadCount(count);
@@ -506,7 +484,6 @@ const Dashboard: React.FC = () => {
         console.error("Failed to fetch unread count:", countErr);
       }
       
-      // Get notifications - simplified approach
       try {
         const response = await notificationService.getTeacherNotifications({ 
           page, 
@@ -524,7 +501,6 @@ const Dashboard: React.FC = () => {
           setNotificationHasMore(page < (response.pagination?.totalPages || 1));
         } else {
           if (page === 1) {
-            // Try to get unread notifications directly as fallback
             try {
               const unreadNotifs = await notificationService.getUnreadTeacherNotifications();
               if (unreadNotifs && unreadNotifs.length > 0) {
@@ -557,7 +533,6 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // Fetch unread notification count
   const fetchUnreadCount = async () => {
     try {
       const count = await notificationService.getUnreadCount();
@@ -567,7 +542,6 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // Mark notification as read
   const handleMarkAsRead = async (id: string) => {
     try {
       await notificationService.markAsRead(id);
@@ -582,7 +556,6 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // Mark all notifications as read
   const handleMarkAllAsRead = async () => {
     try {
       await notificationService.markAllAsRead();
@@ -595,14 +568,12 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // Load more notifications
   const handleLoadMoreNotifications = () => {
     if (notificationHasMore && !loadingNotifications) {
       fetchNotifications(notificationPage + 1);
     }
   };
 
-  // Get notification icon based on type
   const getNotificationIcon = (type: string) => {
     switch(type) {
       case 'submission':
@@ -616,7 +587,6 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // Get notification color based on type
   const getNotificationColor = (type: string) => {
     switch(type) {
       case 'submission':
@@ -630,7 +600,6 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // Add a helper function to format relative time like "Hari ini" just like in the student UI
   const formatRelativeTime = (dateString: string) => {
     const date = new Date(dateString);
     const today = new Date();
@@ -646,7 +615,6 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // Update the renderNotifications function
   const renderNotifications = () => {
     if (loadingNotifications) {
       return (
@@ -675,7 +643,6 @@ const Dashboard: React.FC = () => {
             >
               <div className="flex gap-4">
                 <div className="flex-shrink-0">
-                  {/* Simple icon display based on type */}
                   <div className="bg-blue-100 text-blue-600 rounded-full w-11 h-11 flex items-center justify-center">
                     {notification.type === 'enrollment' ? (
                       <FiUserPlus size={22} />
@@ -745,39 +712,30 @@ const Dashboard: React.FC = () => {
     );
   };
 
-  // Toggle notification popover
   const toggleNotificationPopover = () => {
     const newState = !isNotificationOpen;
     setIsNotificationOpen(newState);
   };
 
-  // Add a new handleNotificationClick function to navigate to appropriate pages
   const handleNotificationClick = async (notification: NotificationType) => {
     try {
-      // Mark notification as read if it's not already read
       if (!notification.isRead) {
         await notificationService.markAsRead(notification._id);
         
-        // Update state locally
         setNotifications(prevNotifications => 
           prevNotifications.map(n => 
             n._id === notification._id ? { ...n, isRead: true } : n
           )
         );
         
-        // Update unread count
         fetchUnreadCount();
       }
       
-      // Navigate to the appropriate page based on notification type
       if (notification.type === 'submission' && notification.relatedItem) {
-        // Navigate to the assignment submission page
         router.push(`/guru/matapelajaran/${notification.mataPelajaran._id}/tugas/${notification.relatedItem}`);
       } else if (notification.type === 'enrollment' && notification.mataPelajaran) {
-        // Navigate to the mata pelajaran page
         router.push(`/guru/matapelajaran/${notification.mataPelajaran._id}`);
       } else if (notification.type === 'grading_reminder' && notification.relatedItem) {
-        // Navigate to the assignment page that needs grading
         router.push(`/guru/matapelajaran/${notification.mataPelajaran._id}/tugas/${notification.relatedItem}`);
       }
     } catch (error) {
@@ -806,20 +764,16 @@ const Dashboard: React.FC = () => {
             onOpenChange={(open) => {
               setIsNotificationOpen(open);
               if (open) {
-                // Refresh notifications when popover opens
                 fetchNotifications(1);
                 
-                // Set up periodic refresh while popover is open
                 const intervalId = setInterval(() => {
                   if (document.visibilityState === 'visible') {
                     fetchNotifications(1);
                   }
-                }, 10000); // Refresh every 10 seconds
+                }, 10000);
                 
-                // Store the interval ID
                 (window as any).notificationRefreshInterval = intervalId;
               } else {
-                // Clear the interval when popover closes
                 if ((window as any).notificationRefreshInterval) {
                   clearInterval((window as any).notificationRefreshInterval);
                   (window as any).notificationRefreshInterval = null;
@@ -871,7 +825,6 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Notifications */}
       {error && (
         <div className="mb-6">
           <NotificationAlert
@@ -892,7 +845,6 @@ const Dashboard: React.FC = () => {
         </div>
       )}
 
-      {/* User Profile Card */}
       <div className="mb-6">
         <UserProfileCard 
           user={profileData ? {
@@ -904,7 +856,6 @@ const Dashboard: React.FC = () => {
         />
       </div>
 
-      {/* Statistics/Todo Section */}
       {loading ? (
         <div className="flex justify-center my-12">
           <Spinner size="lg" color="primary" />
@@ -968,7 +919,6 @@ const Dashboard: React.FC = () => {
             </Card>
           </div>
 
-          {/* Todo Form Modal */}
           <Modal isOpen={isOpen} onClose={onClose}>
             <ModalContent>
               <ModalHeader>{isEdit ? 'Edit Tugas' : 'Tambah Tugas'}</ModalHeader>
@@ -1007,7 +957,6 @@ const Dashboard: React.FC = () => {
             </ModalContent>
           </Modal>
 
-          {/* Delete Confirmation Modal */}
           <Modal isOpen={isDeleteModalOpen} onClose={onCloseDeleteModal}>
             <ModalContent>
               <ModalHeader className="flex gap-1">
@@ -1029,7 +978,6 @@ const Dashboard: React.FC = () => {
             </ModalContent>
           </Modal>
 
-          {/* Subject Search */}
           <Card className="mb-6">
             <CardBody>
               <h3 className="text-lg font-semibold mb-3">Cari Mata Pelajaran</h3>
@@ -1047,7 +995,6 @@ const Dashboard: React.FC = () => {
             </CardBody>
           </Card>
 
-          {/* Subjects */}
           <div className="mb-6">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">
@@ -1069,7 +1016,6 @@ const Dashboard: React.FC = () => {
               renderSubjects()
             )}
             
-            {/* Render pagination */}
             {renderPagination()}
           </div>
         </>

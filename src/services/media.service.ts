@@ -6,10 +6,9 @@ const mediaServices = {
     formData.append("file", file);
   
     return instance.post("/media/single", formData, {
-      timeout: 30000, // 30 second timeout
-      transformRequest: [(data) => data], // Keep this to prevent axios from transforming FormData
+      timeout: 30000,
+      transformRequest: [(data) => data],
       headers: {
-        // Let the browser set the Content-Type with boundary
         'Content-Type': undefined,
       },
     });
@@ -18,16 +17,14 @@ const mediaServices = {
   uploadMultiple: (files: File[]) => {
     const formData = new FormData();
     
-    // Append each file to the form data
     files.forEach((file, index) => {
       formData.append("files", file);
     });
   
     return instance.post("/media/multiple", formData, {
-      timeout: 60000, // 60 second timeout
-      transformRequest: [(data) => data], // Keep this to prevent axios from transforming FormData
+      timeout: 60000,
+      transformRequest: [(data) => data],
       headers: {
-        // Let the browser set the Content-Type with boundary
         'Content-Type': undefined,
       },
     });

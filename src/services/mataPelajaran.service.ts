@@ -7,7 +7,6 @@ interface PaginationParams {
   search?: string;
 }
 
-// Mata Pelajaran
 export const getMataPelajaran = async (params?: PaginationParams) => {
   try {
     const response = await instance.get(endpoint.MATA_PELAJARAN, { params });
@@ -92,7 +91,6 @@ export const enrollStudent = async (mataPelajaranId: string, studentId: string) 
   }
 };
 
-// New function for student self-enrollment
 export const selfEnrollStudent = async (mataPelajaranId: string) => {
   try {
     const config: CustomRequestConfig = {

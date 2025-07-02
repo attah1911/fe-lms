@@ -7,15 +7,11 @@ export const PageLoading: React.FC = () => {
   const [currentPath, setCurrentPath] = useState('');
 
   useEffect(() => {
-    // Store the current path when component mounts
     setCurrentPath(router.asPath.split('?')[0]);
 
     const handleStart = (url: string) => {
-      // Extract the path without query parameters
       const newPath = url.split('?')[0];
       
-      // Only show loading if we're navigating to a different path
-      // This prevents loading overlay when just changing tabs
       if (newPath !== currentPath) {
         setIsLoading(true);
       }

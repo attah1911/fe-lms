@@ -29,14 +29,12 @@ const NoteCard: React.FC<NoteCardProps> = ({
 }) => {
   const { isOpen, onOpen, onClose } = useDisclosure();
   
-  // Using a safe approach to handle description
   const description = note.description || "";
   const shouldTruncate = description.length > 100;
   const truncatedDescription = shouldTruncate 
     ? `${description.substring(0, 100)}...` 
     : description;
   
-  // Format the date if it exists
   const formattedDate = note.dueDate ? formatDate(note.dueDate) : "";
   
   return (
@@ -102,7 +100,6 @@ const NoteCard: React.FC<NoteCardProps> = ({
         </div>
       </div>
 
-      {/* Modal for displaying full note content */}
       <Modal isOpen={isOpen} onClose={onClose} size="md">
         <ModalContent>
           <ModalHeader>

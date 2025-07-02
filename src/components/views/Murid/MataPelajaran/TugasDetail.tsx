@@ -15,7 +15,6 @@ import { getAssignmentById, submitAssignment, deleteOwnSubmission } from '../../
 import mediaServices from '../../../../services/media.service';
 import { SessionExtended } from '../../../../types/Auth';
 
-// Update the assignment service to include answer parameter
 const submitAssignmentWithAnswer = async (assignmentId: string, data: {
   files: Array<{
     fileUrl: string;
@@ -30,7 +29,6 @@ const submitAssignmentWithAnswer = async (assignmentId: string, data: {
   }
 };
 
-// Helper function to format file size
 const formatFileSize = (bytes: number): string => {
   if (bytes === 0) return '0 Bytes';
   
@@ -41,7 +39,6 @@ const formatFileSize = (bytes: number): string => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
-// Helper function untuk memformat tanggal dengan aman
 const formatDate = (dateString: string): string => {
   if (!dateString) return 'Tanggal tidak tersedia';
   
@@ -55,7 +52,6 @@ const formatDate = (dateString: string): string => {
   }
 };
 
-// Helper untuk memformat tanggal dengan waktu
 const formatDateTime = (dateString: string): string => {
   if (!dateString) return 'Tanggal tidak tersedia';
   
@@ -137,7 +133,6 @@ interface MataPelajaran {
   judul: string;
 }
 
-// Interface for assignment submission
 interface AssignmentSubmissionPayload {
   files: Array<{
     fileUrl: string;
@@ -165,15 +160,12 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
   const [hasSubmitted, setHasSubmitted] = useState<boolean>(false);
   const [initialLoadComplete, setInitialLoadComplete] = useState<boolean>(false);
     
-  // Define fetchData before the useEffect that uses it
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const fetchData = useCallback(async () => {
     if (!tugasId || !mataPelajaranId || !session?.user) return;
     
     try {
       setLoading(true);
       
-      // Fetch the mata pelajaran info
       const mataPelajaranResponse = await getMataPelajaranById(mataPelajaranId);
       if (mataPelajaranResponse && mataPelajaranResponse.data) {
         setMataPelajaran({
@@ -182,13 +174,11 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
         });
       }
       
-      // Fetch assignment details
       const response = await getAssignmentById(tugasId);
       
       if (response && response.data) {
         const assignment = response.data;
         
-        // Normalize field names - handle both title/judul and description/deskripsi formats
         const normalizedAssignment = {
           ...assignment,
           _id: assignment._id || "",
@@ -206,7 +196,6 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
         
         setTugas(normalizedAssignment);
         
-        // Process attachment files
         if (normalizedAssignment.attachments && normalizedAssignment.attachments.length > 0) {
           const files = normalizedAssignment.attachments.map((attachment: any) => ({
             url: attachment.url,
@@ -215,16 +204,12 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
           setAttachmentFiles(files);
         }
         
-        // PENTING: Jangan reset submissions state, kecuali jika API mengembalikan submission baru
-        // Ini untuk mencegah tampilan "hilang" saat refresh
         let foundSubmissions = [];
         
-        // Filter submissions for current user
         if (normalizedAssignment.submissions && normalizedAssignment.submissions.length > 0) {
           const userEmail = session.user.email;
           const userId = session.user.id;
           
-          // Try to match by email or by student ID
           const userSubmissions = normalizedAssignment.submissions.filter((sub: Submission) => {
             if (!sub.student) return false;
             
@@ -239,20 +224,15 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
           });
           
           if (userSubmissions.length > 0) {
-            // Process each user submission to ensure file data is properly structured
             foundSubmissions = userSubmissions.map((submission: Submission) => {
-              // Create a copy to avoid mutating the original
               const processedSubmission = { ...submission };
               
-              // Fix file structure if necessary
               if (!processedSubmission.fileUrl && processedSubmission.file && processedSubmission.file.url) {
                 processedSubmission.fileUrl = processedSubmission.file.url;
                 processedSubmission.fileName = processedSubmission.file.originalName;
               }
               
-              // Handle additionalFiles if present
               if (processedSubmission.additionalFiles && processedSubmission.additionalFiles.length > 0) {
-                // Make sure each additional file has fileUrl and fileName
                 processedSubmission.additionalFiles = processedSubmission.additionalFiles.filter(file => {
                   return !!file.fileUrl;
                 });
@@ -261,59 +241,46 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
               return processedSubmission;
             });
             
-            // Sort submissions by submittedAt (newest first)
             foundSubmissions = foundSubmissions.sort(
               (a: Submission, b: Submission) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
             );
             
-            // Jika API mengembalikan submissions, gunakan data tersebut dan update localStorage
             if (foundSubmissions.length > 0) {
               setMySubmissions(foundSubmissions);
               
-              // Update storage dengan data yang lebih baru
               saveSubmissionToStorage(foundSubmissions[0]);
               setHasSubmitted(true);
             }
           } else {
-            // API tidak mengembalikan submission
-            
-            // Tidak ada submissions di data assignment dari API
             
             
-            // Prioritaskan data dari storage
+            
             const submissionKey = `submission_${tugasId}_${session?.user?.id}`;
             const submissionStatus = sessionStorage.getItem(submissionKey) || localStorage.getItem(submissionKey);
             const submissionData = sessionStorage.getItem(`${submissionKey}_data`) || localStorage.getItem(`${submissionKey}_data`);
             
             if (submissionStatus === 'submitted' && submissionData) {
               try {
-                // Gunakan data dari storage
                 const parsedData = JSON.parse(submissionData);
                 
                 
-                // Hanya update state jika belum ada data atau jika ini adalah load pertama kali
                 if (mySubmissions.length === 0 || !initialLoadComplete) {
                   setMySubmissions([parsedData]);
                   setHasSubmitted(true);
                 }
               } catch (e) {
                 console.error('Error parsing cached submission data:', e);
-                // Hanya reset jika tidak ada data yang valid
                 if (mySubmissions.length === 0) {
                   setMySubmissions([]);
                 }
               }
             } else if (mySubmissions.length === 0) {
-              // Hanya reset jika tidak ada data di storage maupun state saat ini
               setMySubmissions([]);
             }
           }
         } else {
-          // Tidak ada submissions di data assignment
           
           
-          // Tetap tidak mengubah state mySubmissions jika di localStorage ada status submitted
-          // dan state mySubmissions tidak kosong
           if (mySubmissions.length === 0) {
             const submissionKey = `submission_${tugasId}_${session?.user?.id}`;
             const submissionStatus = localStorage.getItem(submissionKey);
@@ -321,12 +288,10 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
             
             if (submissionStatus === 'submitted' && submissionData) {
               try {
-                // Gunakan data dari localStorage
                 const parsedData = JSON.parse(submissionData);
                 setMySubmissions([parsedData]);
               } catch (e) {
                 console.error('Error parsing cached submission data:', e);
-                // Hanya reset jika tidak ada data yang valid
                 setMySubmissions([]);
               }
             } else {
@@ -350,17 +315,14 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
   useEffect(() => {
     if (tugasId && mataPelajaranId) {
       fetchData();
-      // Check and set submission status from local storage
       const submissionKey = `submission_${tugasId}_${session?.user?.id}`;
       const submissionStatus = localStorage.getItem(submissionKey);
       const submissionData = localStorage.getItem(`${submissionKey}_data`);
       setHasSubmitted(submissionStatus === 'submitted');
       
       if (submissionStatus === 'submitted' && submissionData) {
-        // Load stored submission data from localStorage
         const loadedFromCache = true;
         
-        // Jika tidak ada data dari API, pastikan data cache tetap digunakan
         if (loadedFromCache && mySubmissions.length === 0) {
           try {
             const parsedData = JSON.parse(submissionData!);
@@ -372,29 +334,24 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
     }
   }, [tugasId, mataPelajaranId, session?.user?.id, mySubmissions.length, fetchData]);
   
-  // Fungsi untuk menyimpan data submission ke storage
   const saveSubmissionToStorage = (submissionData: Submission) => {
     if (!tugasId || !session?.user?.id) return;
     
     const submissionKey = `submission_${tugasId}_${session.user.id}`;
     const dataToStore = JSON.stringify(submissionData);
     
-    // Simpan ke localStorage untuk persistensi jangka panjang
     localStorage.setItem(submissionKey, 'submitted');
     localStorage.setItem(`${submissionKey}_data`, dataToStore);
     
-    // Simpan ke sessionStorage untuk akses lebih cepat selama sesi
     sessionStorage.setItem(submissionKey, 'submitted');
     sessionStorage.setItem(`${submissionKey}_data`, dataToStore);
   };
 
-  // Fungsi untuk menghapus data submission dari storage
   const clearSubmissionFromStorage = () => {
     if (!tugasId || !session?.user?.id) return;
     
     const submissionKey = `submission_${tugasId}_${session.user.id}`;
     
-    // Hapus dari kedua storage
     localStorage.removeItem(submissionKey);
     localStorage.removeItem(`${submissionKey}_data`);
     sessionStorage.removeItem(submissionKey);
@@ -409,23 +366,19 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
     const files = e.target.files;
     if (!files) return;
     
-    // Convert FileList to array
     const filesArray = Array.from(files);
     
-    // Check if adding these files would exceed the limit of 5
     if (selectedFiles.length + filesArray.length > 5) {
       toast.error('Maksimal 5 file yang dapat diunggah');
       return;
     }
     
-    // Validate file size (max 10MB each)
     const oversizedFiles = filesArray.filter(file => file.size > 10 * 1024 * 1024);
     if (oversizedFiles.length > 0) {
       toast.error(`${oversizedFiles.length} file melebihi ukuran maksimal 10MB`);
       return;
     }
     
-    // Add new files to the existing selected files
     setSelectedFiles(prev => [...prev, ...filesArray]);
   };
 
@@ -454,7 +407,6 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
       
       const uploadedFiles = [];
       
-      // Upload each file
       for (const file of selectedFiles) {
         
         try {
@@ -483,7 +435,6 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
         return;
       }
       
-      // Submit the assignment with all uploaded files
       const payload: AssignmentSubmissionPayload = {
         files: uploadedFiles
       };
@@ -494,17 +445,13 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
       
       toast.success('Tugas berhasil dikumpulkan');
       
-      // Update submission status in storage
       const newSubmission = createNewSubmission(uploadedFiles, submitResponse);
       
-      // Update UI with submission
       setMySubmissions([newSubmission]);
       setRecentlyUploadedFile(uploadedFiles[0].fileName);
       
-      // Store submission data in storage
       saveSubmissionToStorage(newSubmission);
       
-      // Clear selected files
       setSelectedFiles([]);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
@@ -518,22 +465,18 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
     }
   };
 
-  // Helper function to create new submission
   const createNewSubmission = (uploadedFiles: any[], submitResponse: any): Submission => {
     let newSubmission: Submission;
     
-    // Try to get data from API response first
     if (submitResponse?.data?.submission) {
       
       newSubmission = submitResponse.data.submission;
       
-      // Fix missing fileUrl/fileName if needed
       if (!newSubmission.fileUrl && newSubmission.file && newSubmission.file.url) {
         newSubmission.fileUrl = newSubmission.file.url;
         newSubmission.fileName = newSubmission.file.originalName;
       }
       
-      // Add additionalFiles if needed
       if (uploadedFiles.length > 1 && !newSubmission.additionalFiles) {
         newSubmission.additionalFiles = uploadedFiles.slice(1).map(file => ({
           fileUrl: file.fileUrl,
@@ -541,7 +484,6 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
         }));
       }
     } else {
-      // If no API data, create placeholder submission
       
       newSubmission = {
         _id: `temp_${new Date().getTime()}`,
@@ -562,7 +504,6 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
         updatedAt: new Date().toISOString()
       };
       
-      // Add additional files if any
       if (uploadedFiles.length > 1) {
         newSubmission.additionalFiles = uploadedFiles.slice(1).map(file => ({
           fileUrl: file.fileUrl,
@@ -574,7 +515,6 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
     return newSubmission;
   };
 
-  // Is the deadline passed
   const isDeadlinePassed = () => {
     if (!tugas) return false;
     const now = new Date();
@@ -588,7 +528,6 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
     }
   };
 
-  // Helper function to get status color
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'graded':
@@ -602,7 +541,6 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
     }
   };
   
-  // Helper function to get status text
   const getStatusText = (status: string) => {
     switch (status) {
       case 'graded':
@@ -617,11 +555,9 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
     }
   };
   
-  // Handle file downloads
   const handleDownloadFile = (file: { url: string; name: string }) => {
     try {
       
-      // Make sure we're using the downloadFile utility properly
       downloadFile(file.url, file.name);
     } catch (error) {
       console.error('Error downloading file:', error);
@@ -639,11 +575,9 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
       
       toast.success('Pengumpulan tugas berhasil dihapus');
       
-      // Hapus status pengumpulan dari storage
       clearSubmissionFromStorage();
       setHasSubmitted(false);
       
-      // Reset mySubmissions state tanpa melakukan refresh
       setMySubmissions([]);
       setIsDeleteModalOpen(false);
       setSubmissionToDelete(null);
@@ -675,19 +609,15 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
       setDeleting(true);
       
       
-      // First delete the current submission
       await deleteOwnSubmission(tugasId, submissionToDelete);
       
       toast.success('Pengumpulan lama berhasil dihapus. Silakan unggah file baru.');
       
-      // Hapus status pengumpulan dari storage
       clearSubmissionFromStorage();
       setHasSubmitted(false);
       
-      // Reset mySubmissions state tanpa melakukan refresh
       setMySubmissions([]);
       
-      // Close the modal and clear the submission to delete
       setIsReplaceModalOpen(false);
       setSubmissionToDelete(null);
     } catch (err: any) {
@@ -710,7 +640,6 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
         />
       )}
 
-      {/* Delete confirmation modal */}
       <Modal isOpen={isDeleteModalOpen} onClose={() => setIsDeleteModalOpen(false)}>
         <ModalContent>
           <ModalHeader>Konfirmasi Hapus Pengumpulan</ModalHeader>
@@ -739,7 +668,6 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
         </ModalContent>
       </Modal>
       
-      {/* Replace confirmation modal */}
       <Modal isOpen={isReplaceModalOpen} onClose={() => setIsReplaceModalOpen(false)}>
         <ModalContent>
           <ModalHeader className="text-primary">Ubah Pengumpulan Tugas</ModalHeader>
@@ -803,7 +731,6 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
         </div>
       ) : tugas ? (
         <div className="grid grid-cols-1 gap-6 mb-6">
-          {/* Assignment details */}
           <Card>
             <CardBody className="p-4 sm:p-6">
               <div className="flex items-center gap-2">
@@ -850,7 +777,6 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
             </CardBody>
           </Card>
           
-          {/* File Attachments */}
           <Card>
             <CardBody className="p-4 sm:p-6">
               <div className="flex items-center gap-2">
@@ -884,7 +810,6 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
             </CardBody>
           </Card>
 
-          {/* Submission status - Show if user has submitted */}
           {((mySubmissions && mySubmissions.length > 0) || hasSubmitted) && (
             <Card>
               <CardBody className="p-6">
@@ -894,7 +819,6 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
                     <h3 className="text-lg font-semibold">Pengumpulan Tugas</h3>
                   </div>
                   
-                  {/* Refresh button */}
                   <Button
                     size="sm"
                     variant="light"
@@ -917,7 +841,6 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
                   {mySubmissions.length > 0 ? (
                     mySubmissions.map((submission) => (
                       <div key={submission._id} className="border rounded-lg shadow-sm overflow-hidden">
-                        {/* Header dengan status */}
                         <div className="bg-default-50 p-3 border-b">
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                             <div className="flex flex-wrap items-center gap-2">
@@ -941,20 +864,16 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
                           </div>
                         </div>
                         
-                        {/* Body dengan file */}
                         <div className="p-4">
-                          {/* Main file */}
                           <div className="mb-4">
                             <h4 className="text-sm font-medium mb-2">File Tugas:</h4>
                             
-                            {/* Display file info for debugging */}
                             {process.env.NODE_ENV === 'development' && (
                               <div className="text-xs text-gray-500 mb-2 border-l-2 border-warning pl-2">
                                 <p>File Name: {submission.fileName || 'Tidak tersedia'}</p>
                               </div>
                             )}
                             
-                            {/* File display */}
                             {(submission.fileUrl || (submission.file && submission.file.url)) ? (
                               <div className="flex items-center p-3 border rounded-md bg-default-50 mb-3">
                                 <FiFile className="text-primary mr-3 flex-shrink-0" size={18} />
@@ -983,7 +902,6 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
                               </div>
                             )}
                             
-                            {/* Additional files */}
                             {submission.additionalFiles && submission.additionalFiles.length > 0 && (
                               <div className="mt-4">
                                 <h4 className="text-sm font-medium mb-2">File Tambahan:</h4>
@@ -1018,7 +936,6 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
                             )}
                           </div>
                           
-                          {/* Action buttons */}
                           {!isDeadlinePassed() && submission.status === 'submitted' && (
                             <div className="mt-4 flex flex-wrap gap-2">
                               <Button
@@ -1042,7 +959,6 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
                           )}
                         </div>
                         
-                        {/* Jika sudah dinilai */}
                         {submission.status === 'graded' && submission.score !== undefined && (
                           <div className="p-4 bg-success-50 border-t">
                             <div className="flex items-center gap-2 mb-1">
@@ -1109,7 +1025,6 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
             </Card>
           )}
           
-          {/* Submit form - Show only if deadline not passed and no submission yet */}
           {!isDeadlinePassed() && !hasSubmitted && (!mySubmissions || mySubmissions.length === 0) && (
             <Card>
               <CardBody className="p-4 sm:p-6">
@@ -1205,7 +1120,6 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
             </Card>
           )}
           
-          {/* Show message if deadline is passed and no submission */}
           {isDeadlinePassed() && mySubmissions.length === 0 && !hasSubmitted && (
             <Card>
               <CardBody className="p-6 text-center">

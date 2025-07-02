@@ -18,7 +18,6 @@ import { toast } from "sonner";
 import CreateMateriPelajaranModal from "../../../components/views/Admin/DataMateriPelajaran/CreateMateriPelajaranModal";
 import AssignmentModal from "../../../components/views/Admin/DataMateriPelajaran/AssignmentModal";
 
-// Define the Materi interface since it's not exported from materiPelajaran.service
 interface Materi {
   _id: string;
   judul: string;
@@ -49,7 +48,6 @@ const MataPelajaranDetail: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>("materi");
   
   useEffect(() => {
-    // Check for tab parameter in URL
     if (router.query.tab) {
       setActiveTab(router.query.tab as string);
     }
@@ -78,8 +76,6 @@ const MataPelajaranDetail: React.FC = () => {
     
     try {
       setLoadingAssignments(true);
-      // Get assignments for the first materi (as an example)
-      // In production you might want to get all assignments for all materis
       const firstMateriId = materiList[0]._id;
       const response = await getAssignmentsByMateriId(firstMateriId);
       setAssignments(response.data);
@@ -97,11 +93,9 @@ const MataPelajaranDetail: React.FC = () => {
       try {
         setLoading(true);
         
-        // Fetch mata pelajaran details
         const mataPelajaranResponse = await getMataPelajaranById(id as string);
         setMataPelajaran(mataPelajaranResponse.data);
         
-        // Fetch materi pelajaran list
         const materiResponse = await getMateriByMataPelajaranId(id as string);
         setMateriList(materiResponse.data);
         
@@ -117,14 +111,11 @@ const MataPelajaranDetail: React.FC = () => {
     fetchData();
   }, [id]);
   
-  // Separate effect for handling tab changes and fetching tab-specific data
   useEffect(() => {
-    // Fetch assignments when switching to tugas tab
     if (activeTab === 'tugas' && materiList.length > 0 && assignments.length === 0) {
       fetchAssignments();
     }
     
-    // Fetch enrolled students when switching to siswa tab
     if (activeTab === 'siswa' && id && enrolledStudents.length === 0) {
       fetchEnrolledStudents();
     }
@@ -145,20 +136,16 @@ const MataPelajaranDetail: React.FC = () => {
       setIsAddingMaterial(true);
       setError(null);
       
-      // Create material object with proper order
       const newMaterial = {
         ...formData,
         order: materiList.length + 1
       };
       
-      // Pass the mata pelajaran ID as the first parameter to the service function
       const response = await createMateriPelajaran(id as string, newMaterial);
       
-      // Refresh the materials list
       const materiResponse = await getMateriByMataPelajaranId(id as string);
       setMateriList(materiResponse.data);
       
-      // Close the modal and show success toast
       setIsMateriModalOpen(false);
       toast.success("Materi berhasil ditambahkan!", {
         description: `Materi "${formData.judul}" telah ditambahkan ke mata pelajaran.`,
@@ -167,13 +154,11 @@ const MataPelajaranDetail: React.FC = () => {
     } catch (err: any) {
       console.error("Error adding material:", err);
       
-      // Display error toast
       toast.error("Gagal menambahkan materi", {
         description: err.message || "Terjadi kesalahan saat menambahkan materi.",
         duration: 5000
       });
       
-      // Display the raw error for debugging in error state
       setError(`${err.message}`);
     } finally {
       setIsAddingMaterial(false);
@@ -189,23 +174,18 @@ const MataPelajaranDetail: React.FC = () => {
       setIsAddingAssignment(true);
       setError(null);
 
-      // Call the actual API endpoint to create an assignment
       const response = await createAssignment(data);
       
-      // Update the assignments list with the newly created assignment
       if (response && response.data) {
-        // Make sure to add the newly created assignment to our state
         setAssignments(prev => [...prev, response.data]);
       }
 
-      // Close the modal and show success toast
       setIsAssignmentModalOpen(false);
       toast.success("Tugas berhasil ditambahkan!", {
         description: `Tugas "${data.title}" telah berhasil dibuat.`,
         duration: 3000
       });
       
-      // If we're in the "materi" tab, switch to the "tugas" tab to show the new assignment
       if (activeTab !== "tugas") {
         setActiveTab("tugas");
       }
@@ -227,30 +207,22 @@ const MataPelajaranDetail: React.FC = () => {
     const tabKey = key.toString();
     setActiveTab(tabKey);
     
-    // Don't use router.push as it triggers the page loading overlay
-    // Instead, just update the state locally
     
-    // Fetch assignments if switching to tugas tab
     if (tabKey === 'tugas' && assignments.length === 0 && materiList.length > 0) {
       fetchAssignments();
     }
   };
 
-  // Add handler for file downloads
   const handleDownloadFile = (file: string | { url: string; name: string }) => {
     const fileUrl = typeof file === 'string' ? file : file.url;
     
-    // Get the proper filename with extension
     let fileName: string;
     
     if (typeof file === 'string') {
-      // For backwards compatibility with old data format
       fileName = getFileNameFromUrl(file);
     } else if (file.name) {
-      // For new format with stored filename
       fileName = file.name;
       
-      // Ensure file has extension (especially for docx files from Cloudinary)
       if (fileUrl.includes('/documents/word/') && !fileName.toLowerCase().endsWith('.docx')) {
         fileName += '.docx';
       } else if (fileUrl.includes('/documents/pdf/') && !fileName.toLowerCase().endsWith('.pdf')) {
@@ -260,7 +232,6 @@ const MataPelajaranDetail: React.FC = () => {
       } else if (fileUrl.includes('/documents/presentations/') && 
                 !fileName.toLowerCase().endsWith('.pptx') && 
                 !fileName.toLowerCase().endsWith('.ppt')) {
-        // Only add extension if the file doesn't already have a PowerPoint extension
         fileName += '.pptx';
       }
     } else {
@@ -308,7 +279,6 @@ const MataPelajaranDetail: React.FC = () => {
                     color="primary"
                     startContent={<FiEye size={14} />}
                     onPress={() => {
-                      // Store the mataPelajaranId in localStorage before navigation
                       localStorage.setItem('currentMataPelajaranId', id as string);
                       router.push(`/guru/matapelajaran/${id}/materi/${materi._id}`);
                     }}
@@ -326,7 +296,6 @@ const MataPelajaranDetail: React.FC = () => {
                     <h4 className="text-sm font-medium mb-2">File Terlampir:</h4>
                     <div className="flex flex-wrap gap-2">
                       {materi.konten.files.map((file, fileIndex) => {
-                        // Handle both string URLs and object format with url and name properties
                         const fileUrl = typeof file === 'string' ? file : file.url;
                         const fileName = typeof file === 'string' ? getFileNameFromUrl(file) : file.name;
                         
@@ -384,7 +353,6 @@ const MataPelajaranDetail: React.FC = () => {
     return (
       <div className="space-y-4 mt-4">
         {assignments.map((assignment) => {
-          // Calculate if the deadline is past
           const deadlineDate = new Date(assignment.deadline);
           const isDeadlinePast = deadlineDate < new Date();
           const totalSubmissions = assignment.submissions.length;
@@ -640,7 +608,6 @@ const MataPelajaranDetail: React.FC = () => {
               </div>
             </div>
             
-            {/* Modal for adding new materials */}
             <CreateMateriPelajaranModal
               isOpen={isMateriModalOpen}
               onClose={() => setIsMateriModalOpen(false)}
@@ -648,14 +615,13 @@ const MataPelajaranDetail: React.FC = () => {
               isSubmitting={isAddingMaterial}
             />
             
-            {/* Modal for adding new assignment */}
             {mataPelajaran && mataPelajaran._id && materiList.length > 0 && (
               <AssignmentModal
                 isOpen={isAssignmentModalOpen}
                 onClose={() => setIsAssignmentModalOpen(false)}
                 onSubmit={handleAssignmentSubmit}
                 isSubmitting={isAddingAssignment}
-                materiId={materiList[0]._id}  // Default to first material
+                materiId={materiList[0]._id}
                 mataPelajaranId={mataPelajaran._id}
                 mode="create"
               />

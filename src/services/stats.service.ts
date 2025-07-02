@@ -1,6 +1,5 @@
 import instance from "../libs/axios/instance";
 
-// Tipe data untuk statistik dashboard
 export interface DashboardStats {
   studentCount: number;
   teacherCount: number;
@@ -19,7 +18,6 @@ export interface DashboardStats {
   }>;
 }
 
-// Tipe data untuk statistik guru
 export interface GuruStats {
   mataPelajaranCount: number;
   muridCount: number;

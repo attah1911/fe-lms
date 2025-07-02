@@ -25,22 +25,18 @@ const MataPelajaran: React.FC = () => {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const router = useRouter();
 
-  // Teacher data for the current user
   const [teacherId, setTeacherId] = useState<string>("");
   const [teacherName, setTeacherName] = useState<string>("");
 
-  // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
   const [selectedMataPelajaran, setSelectedMataPelajaran] = useState<ExtendedMataPelajaran>();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Delete modal states
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [selectedForDelete, setSelectedForDelete] = useState<ExtendedMataPelajaran>();
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Fetch teacher data
   useEffect(() => {
     const fetchTeacherData = async () => {
       try {
@@ -62,10 +58,8 @@ const MataPelajaran: React.FC = () => {
     }
     
     return data.map(item => {
-      // Ensure item exists and has necessary properties
       if (!item) return {} as ExtendedMataPelajaran;
       
-      // Handle different guru data formats
       let guruName = 'Unknown';
       if (typeof item.guru === 'object' && item.guru && item.guru.fullName) {
         guruName = item.guru.fullName;
@@ -268,7 +262,6 @@ const MataPelajaran: React.FC = () => {
         description="Daftar mata pelajaran yang Anda ajar"
       />
 
-      {/* Search and Add New Button */}
       <div className="mb-6 flex justify-between items-center">
         <SearchInput
           value={searchTerm}
@@ -285,7 +278,6 @@ const MataPelajaran: React.FC = () => {
         </Button>
       </div>
 
-      {/* Notifications */}
       <div className="relative z-50">
         {error && (
           <NotificationAlert
@@ -303,7 +295,6 @@ const MataPelajaran: React.FC = () => {
         )}
       </div>
 
-      {/* Table */}
       <DataTable
         columns={columns}
         data={mataPelajarans || []}
@@ -313,7 +304,6 @@ const MataPelajaran: React.FC = () => {
         showActions={false}
       />
 
-      {/* Modals */}
       {teacherId && (
         <CreateEditMataPelajaranModal
           isOpen={isModalOpen}

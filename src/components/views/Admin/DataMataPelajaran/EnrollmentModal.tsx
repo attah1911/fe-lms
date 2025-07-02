@@ -50,7 +50,6 @@ const EnrollmentModal: React.FC<EnrollmentModalProps> = ({
     try {
       setLoading(true);
       
-      // Use the actual API call to get enrolled students
       const response = await getEnrolledStudents(mataPelajaranId);
       setEnrolledStudents(response.data || []);
       setError(null);
@@ -58,7 +57,7 @@ const EnrollmentModal: React.FC<EnrollmentModalProps> = ({
     } catch (err: any) {
       console.error("Error fetching enrolled students:", err);
       setError("Tidak dapat memuat daftar murid yang terdaftar.");
-      setEnrolledStudents([]); // Set to empty array on error
+      setEnrolledStudents([]);
       setLoading(false);
     }
   }, [mataPelajaranId]);
@@ -68,7 +67,6 @@ const EnrollmentModal: React.FC<EnrollmentModalProps> = ({
       setLoading(true);
       const response = await getStudents({ limit: 100 });
       
-      // Filter out already enrolled students
       const enrolledIds = enrolledStudents.map(student => student._id);
       const available = response.data.filter((student: Student) => 
         !enrolledIds.includes(student._id as string)
@@ -100,10 +98,8 @@ const EnrollmentModal: React.FC<EnrollmentModalProps> = ({
     try {
       setIsProcessing(true);
       
-      // Use the actual API call to enroll a student
       await enrollStudent(mataPelajaranId, studentId);
       
-      // After successful enrollment, update the local state
       const studentToEnroll = availableStudents.find(student => student._id === studentId);
       if (studentToEnroll) {
         const newEnrolledStudent: EnrolledStudent = {
@@ -133,10 +129,8 @@ const EnrollmentModal: React.FC<EnrollmentModalProps> = ({
     try {
       setIsProcessing(true);
       
-      // Use the actual API call to unenroll a student
       await unenrollStudent(mataPelajaranId, studentId);
       
-      // After successful unenrollment, update the local state
       setEnrolledStudents(prev => prev.filter(student => student._id !== studentId));
       
       toast.success("Murid berhasil dihapus dari mata pelajaran");
@@ -161,7 +155,6 @@ const EnrollmentModal: React.FC<EnrollmentModalProps> = ({
     (student.nis && student.nis.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  // Clear success message after 3 seconds
   useEffect(() => {
     if (success) {
       const timer = setTimeout(() => {
@@ -189,7 +182,6 @@ const EnrollmentModal: React.FC<EnrollmentModalProps> = ({
               </h3>
             </ModalHeader>
             <ModalBody>
-              {/* Notifications */}
               {error && (
                 <NotificationAlert
                   type="error"
@@ -205,7 +197,6 @@ const EnrollmentModal: React.FC<EnrollmentModalProps> = ({
                 />
               )}
 
-              {/* Tabs */}
               <div className="flex border-b mb-4">
                 <button
                   className={`px-4 py-2 ${
@@ -239,7 +230,6 @@ const EnrollmentModal: React.FC<EnrollmentModalProps> = ({
                 </button>
               </div>
 
-              {/* Search */}
               <div className="mb-4">
                 <Input
                   placeholder="Cari murid..."
@@ -249,13 +239,11 @@ const EnrollmentModal: React.FC<EnrollmentModalProps> = ({
                 />
               </div>
 
-              {/* Table */}
               {loading ? (
                 <div className="flex justify-center py-8">
                   <Spinner size="lg" color="primary" />
                 </div>
               ) : activeTab === 'enrolled' ? (
-                // Enrolled Students Table
                 filteredEnrolledStudents.length > 0 ? (
                   <Table aria-label="Enrolled students table">
                     <TableHeader>
@@ -296,7 +284,6 @@ const EnrollmentModal: React.FC<EnrollmentModalProps> = ({
                   </div>
                 )
               ) : (
-                // Available Students Table
                 filteredAvailableStudents.length > 0 ? (
                   <Table aria-label="Available students table">
                     <TableHeader>

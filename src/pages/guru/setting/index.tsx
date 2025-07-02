@@ -74,21 +74,17 @@ const TeacherSettingsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>("profile");
   const [passwordErrors, setPasswordErrors] = useState<PasswordErrors>({});
   
-  // Password visibility states
   const [isCurrentPasswordVisible, setIsCurrentPasswordVisible] = useState(false);
   const [isNewPasswordVisible, setIsNewPasswordVisible] = useState(false);
   const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = useState(false);
   
-  // Fetch user profile and teacher data
   const fetchProfileAndTeacherData = async () => {
     try {
       setLoading(true);
       
-      // Fetch user profile
       const profileResponse = await authServices.getProfile();
       
       if (profileResponse && profileResponse.data) {
-        // Extract data correctly from response structure
         const profileData = profileResponse.data.data || profileResponse.data;
         setProfile(profileData);
         setUpdateData({
@@ -97,13 +93,11 @@ const TeacherSettingsPage: React.FC = () => {
           email: profileData.email || "",
         });
         
-        // Set image preview if profile has a picture
         if (profileData.profilePicture) {
           setImagePreview(profileData.profilePicture);
         }
       }
       
-      // Fetch teacher data - wrap in try/catch so it doesn't affect the whole component if it fails
       try {
         const teacherResponse = await guruService.getTeacherProfile();
         
@@ -117,8 +111,6 @@ const TeacherSettingsPage: React.FC = () => {
         }
       } catch (teacherErr: any) {
         console.error("Error fetching teacher data:", teacherErr);
-        // Just silently handle the error, don't set error state or show message
-        // Initialize with empty values so the form still works
         setTeacherData(null);
         setTeacherUpdateData({
           nrk: "",
@@ -129,33 +121,26 @@ const TeacherSettingsPage: React.FC = () => {
       setError(null);
     } catch (err: any) {
       console.error("Error fetching profile:", err);
-      // Don't set error state to avoid showing error message
-      // setError(err.response?.data?.message || err.message || "Gagal memuat profil");
-      // setShowError(true);
     } finally {
       setLoading(false);
     }
   };
   
-  // Initial data fetch
   useEffect(() => {
     if (session?.user) {
       fetchProfileAndTeacherData();
     }
   }, [session]);
 
-  // Handle image file selection
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     
-    // Validate file type
     if (!file.type.includes('image/')) {
       toast.error('Pilih file gambar yang valid');
       return;
     }
     
-    // Validate file size (max 2MB)
     if (file.size > 2 * 1024 * 1024) {
       toast.error('Ukuran gambar terlalu besar (max 2MB)');
       return;
@@ -163,7 +148,6 @@ const TeacherSettingsPage: React.FC = () => {
     
     setSelectedImage(file);
     
-    // Create preview URL
     const reader = new FileReader();
     reader.onloadend = () => {
       setImagePreview(reader.result as string);
@@ -171,35 +155,29 @@ const TeacherSettingsPage: React.FC = () => {
     reader.readAsDataURL(file);
   };
 
-  // Handle profile update
   const handleProfileUpdate = async () => {
     try {
       setSaving(true);
       
-      // Validate inputs
       if (!updateData.fullName || !updateData.username || !updateData.email) {
         toast.error('Mohon isi semua field profil');
         setSaving(false);
         return;
       }
       
-      // Check if username or email has changed
       const usernameChanged = updateData.username !== profile?.username;
       const emailChanged = updateData.email !== profile?.email;
       
-      // Upload image if selected
       let profilePicture = profile?.profilePicture || undefined;
       if (selectedImage) {
         try {
           const formData = new FormData();
           formData.append('file', selectedImage);
           
-          // Use media service to upload the image
           const uploadResponse = await mediaServices.uploadSingle(selectedImage);
           if (uploadResponse && uploadResponse.data && uploadResponse.data.data) {
             profilePicture = uploadResponse.data.data.url;
           } else {
-            // Fallback to image preview if upload fails
             profilePicture = imagePreview || undefined;
           }
         } catch (uploadErr) {
@@ -209,14 +187,12 @@ const TeacherSettingsPage: React.FC = () => {
       }
       
       try {
-        // Update profile
         const response = await authServices.updateProfile({
           ...updateData,
           profilePicture,
         });
         
         if (response && response.data) {
-          // Update session with new profile data
           if (session?.user) {
             await updateSession({
               ...session,
@@ -231,7 +207,6 @@ const TeacherSettingsPage: React.FC = () => {
           }
           
           toast.success('Profil berhasil diperbarui');
-          // Refresh profile data
           fetchProfileAndTeacherData();
         }
       } catch (updateErr: any) {
@@ -253,12 +228,10 @@ const TeacherSettingsPage: React.FC = () => {
     }
   };
 
-  // Handle teacher data update
   const handleTeacherDataUpdate = async () => {
     try {
       setSaving(true);
       
-      // Validate inputs
       if (!teacherUpdateData.nrk) {
         toast.error('Mohon isi NRK');
         setSaving(false);
@@ -276,7 +249,6 @@ const TeacherSettingsPage: React.FC = () => {
         
         if (response && response.data) {
           toast.success('Data guru berhasil diperbarui');
-          // Refresh teacher data
           fetchProfileAndTeacherData();
         }
       } catch (updateErr: any) {
@@ -291,7 +263,6 @@ const TeacherSettingsPage: React.FC = () => {
     }
   };
   
-  // Validate password
   const validatePassword = () => {
     const errors: PasswordErrors = {};
     
@@ -315,7 +286,6 @@ const TeacherSettingsPage: React.FC = () => {
     return Object.keys(errors).length === 0;
   };
 
-  // Reset error for specific field
   type PasswordField = keyof PasswordErrors;
   
   const resetErrorField = (field: PasswordField) => {
@@ -327,7 +297,6 @@ const TeacherSettingsPage: React.FC = () => {
     }
   };
   
-  // Handle password update
   const handlePasswordUpdate = async () => {
     try {
       setSaving(true);
@@ -346,7 +315,6 @@ const TeacherSettingsPage: React.FC = () => {
         if (response && response.data) {
           toast.success('Password berhasil diubah');
           
-          // Reset form
           setPasswordData({
             currentPassword: "",
             newPassword: "",
@@ -358,13 +326,11 @@ const TeacherSettingsPage: React.FC = () => {
       } catch (updateErr: any) {
         console.error("Error changing password:", updateErr);
         
-        // Set error message on the field regardless of error status
         setPasswordErrors(prev => ({
           ...prev,
           currentPassword: 'Password yang Anda masukkan tidak valid'
         }));
         
-        // Only show toast for non-500 errors
         if (updateErr.response?.status !== 500) {
           toast.error(updateErr.response?.data?.message || 'Gagal mengubah password');
         }
@@ -377,14 +343,12 @@ const TeacherSettingsPage: React.FC = () => {
     }
   };
 
-  // Trigger file input click
   const triggerFileInput = () => {
     if (fileInputRef.current) {
       fileInputRef.current.click();
     }
   };
 
-  // Toggle password visibility
   const toggleCurrentPasswordVisibility = () => setIsCurrentPasswordVisible(!isCurrentPasswordVisible);
   const toggleNewPasswordVisibility = () => setIsNewPasswordVisible(!isNewPasswordVisible);
   const toggleConfirmPasswordVisibility = () => setIsConfirmPasswordVisible(!isConfirmPasswordVisible);
@@ -415,7 +379,6 @@ const TeacherSettingsPage: React.FC = () => {
                 </CardHeader>
                 <CardBody>
                   <div className="flex flex-col md:flex-row gap-5">
-                    {/* Profile picture section */}
                     <div className="flex flex-col items-center gap-3 mb-4 md:mb-0">
                       <Avatar
                         src={imagePreview || profile?.profilePicture || "/images/general/icon_default.png"}
@@ -446,7 +409,6 @@ const TeacherSettingsPage: React.FC = () => {
                       </p>
                     </div>
                     
-                    {/* Profile form */}
                     <div className="flex-1">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <Input

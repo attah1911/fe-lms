@@ -51,11 +51,9 @@ const Tugas: React.FC = () => {
       try {
         setLoading(true);
         
-        // Mengambil data tugas dari API
         const response = await getStudentAssignments();
         setAssignments(response.data || []);
         
-        // Set pagination data
         setPagination({
           total: response.meta?.pagination?.total || 0,
           totalPages: response.meta?.pagination?.totalPages || 0,
@@ -78,7 +76,6 @@ const Tugas: React.FC = () => {
     }
   }, [session]);
 
-  // Format date
   const formatDate = (dateString?: string | Date) => {
     if (!dateString) return '-';
     try {
@@ -88,14 +85,12 @@ const Tugas: React.FC = () => {
     }
   };
 
-  // Check if deadline is passed
   const isDeadlinePassed = (deadline: string) => {
     const deadlineDate = new Date(deadline);
     const now = new Date();
     return deadlineDate < now;
   };
 
-  // Get remaining days until deadline
   const getRemainingDays = (deadline: string) => {
     const deadlineDate = new Date(deadline);
     const now = new Date();
@@ -104,13 +99,11 @@ const Tugas: React.FC = () => {
     return diffDays;
   };
 
-  // Handle search
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     applyFilters();
   };
 
-  // Handle clear search and filters
   const handleClearFilters = () => {
     setSearchTerm('');
     setStatusFilter(null);
@@ -124,17 +117,14 @@ const Tugas: React.FC = () => {
     });
   };
 
-  // Handle sort change
   const handleSortChange = (sort: string) => {
     setSortBy(sort === sortBy ? null : sort);
     setTimeout(() => applyFilters(), 0);
   };
 
-  // Apply filters (search, status, and sorting)
   const applyFilters = () => {
     let filtered = [...assignments];
     
-    // Apply search term filter
     if (searchTerm.trim()) {
       filtered = filtered.filter(assignment => 
         assignment.judul.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -143,12 +133,10 @@ const Tugas: React.FC = () => {
       );
     }
     
-    // Apply status filter
     if (statusFilter) {
       filtered = filtered.filter(assignment => assignment.status === statusFilter);
     }
     
-    // Apply sorting
     if (sortBy) {
       switch (sortBy) {
         case 'deadline_asc':
@@ -158,7 +146,6 @@ const Tugas: React.FC = () => {
           filtered.sort((a, b) => new Date(b.deadline).getTime() - new Date(a.deadline).getTime());
           break;
         case 'status':
-          // Sort by status: belum_dikerjakan, sedang_dikerjakan, selesai
           filtered.sort((a, b) => {
             const statusOrder = {
               'belum_dikerjakan': 0,
@@ -169,7 +156,6 @@ const Tugas: React.FC = () => {
           });
           break;
         case 'matapelajaran':
-          // Sort by mata pelajaran name
           filtered.sort((a, b) => a.mataPelajaran.judul.localeCompare(b.mataPelajaran.judul));
           break;
       }
@@ -184,13 +170,11 @@ const Tugas: React.FC = () => {
     });
   };
 
-  // Handle status filter change
   const handleStatusFilterChange = (status: string) => {
     setStatusFilter(status === statusFilter ? null : status);
     setTimeout(() => applyFilters(), 0);
   };
 
-  // Handle page change
   const handlePageChange = (page: number) => {
     setPagination(prev => ({
       ...prev,
@@ -198,7 +182,6 @@ const Tugas: React.FC = () => {
     }));
   };
 
-  // Get current assignments based on pagination
   const getCurrentAssignments = () => {
     const currentAssignments = filteredAssignments !== null ? filteredAssignments : assignments;
     const startIndex = (pagination.current - 1) * 6;
@@ -207,12 +190,10 @@ const Tugas: React.FC = () => {
     return currentAssignments.slice(startIndex, endIndex);
   };
 
-  // Handle view assignment
   const handleViewAssignment = (assignmentId: string, mataPelajaranId: string) => {
     router.push(`/murid/matapelajaran/${mataPelajaranId}/tugas/${assignmentId}`);
   };
 
-  // Render status chip
   const renderStatusChip = (status: Assignment['status'], deadline: string) => {
     const isLate = isDeadlinePassed(deadline) && status !== 'selesai';
     
@@ -260,7 +241,6 @@ const Tugas: React.FC = () => {
     }
   };
 
-  // Render deadline info
   const renderDeadlineInfo = (deadline: string) => {
     const isPassed = isDeadlinePassed(deadline);
     const remainingDays = getRemainingDays(deadline);
@@ -277,7 +257,6 @@ const Tugas: React.FC = () => {
     );
   };
 
-  // Render card with status indicator
   const renderCard = (assignment: Assignment) => {
     const isLate = isDeadlinePassed(assignment.deadline) && assignment.status !== 'selesai';
     const statusColor = isLate ? 'danger' : 
@@ -322,7 +301,7 @@ const Tugas: React.FC = () => {
                 size="sm"
                 endContent={<FiChevronRight size={16} />}
                 onClick={(e) => {
-                  e.stopPropagation(); // Prevent event bubbling
+                  e.stopPropagation();
                   handleViewAssignment(assignment._id, assignment.mataPelajaran._id);
                 }}
               >
@@ -335,7 +314,6 @@ const Tugas: React.FC = () => {
     );
   };
 
-  // Render assignments
   const renderAssignments = () => {
     const currentAssignments = getCurrentAssignments();
     
@@ -360,7 +338,6 @@ const Tugas: React.FC = () => {
     );
   };
 
-  // Render pagination
   const renderPagination = () => {
     if (pagination.totalPages <= 1) return null;
     
@@ -376,7 +353,6 @@ const Tugas: React.FC = () => {
     );
   };
 
-  // Get assignment stats
   const getAssignmentStats = () => {
     const total = assignments.length;
     const completed = assignments.filter(a => a.status === 'selesai').length;
@@ -387,7 +363,6 @@ const Tugas: React.FC = () => {
     return { total, completed, inProgress, notStarted, late };
   };
 
-  // Render assignment stats
   const renderAssignmentStats = () => {
     const stats = getAssignmentStats();
     
@@ -469,7 +444,6 @@ const Tugas: React.FC = () => {
         />
       </div>
 
-      {/* Notifications */}
       {error && (
         <div className="mb-6">
           <NotificationAlert
@@ -480,10 +454,8 @@ const Tugas: React.FC = () => {
         </div>
       )}
 
-      {/* Assignment Stats */}
       {!loading && renderAssignmentStats()}
 
-      {/* Search and Filters */}
       <Card className="mb-6">
         <CardBody>
           <div className="flex flex-col md:flex-row gap-4">
@@ -553,7 +525,6 @@ const Tugas: React.FC = () => {
             </div>
           </div>
           
-          {/* Active Filters */}
           <div className="mt-4 flex flex-wrap items-center gap-2">
             {statusFilter && (
               <div className="flex items-center gap-1">
@@ -595,7 +566,6 @@ const Tugas: React.FC = () => {
         </CardBody>
       </Card>
 
-      {/* Assignments */}
       <div className="mb-6">
         <div className="mb-4">
           <h3 className="text-lg font-semibold">

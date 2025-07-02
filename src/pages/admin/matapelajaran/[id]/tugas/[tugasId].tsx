@@ -53,7 +53,6 @@ import { Assignment, SubmissionStatus, AssignmentSubmission } from "../../../../
 import { downloadFile } from "../../../../../utils/fileUtils";
 import mediaServices from "../../../../../services/media.service";
 
-// Extend AssignmentSubmission to include answer property
 interface ExtendedAssignmentSubmission extends AssignmentSubmission {
   answer?: string;
 }
@@ -85,7 +84,6 @@ const AssignmentDetail: React.FC = () => {
   const [submissionToDelete, setSubmissionToDelete] = useState<string | null>(null);
   const [recentlyUploadedFile, setRecentlyUploadedFile] = useState<string | null>(null);
 
-  // Check if user has permission (admin or guru)
   const hasPermission = session?.user?.role === 'admin' || session?.user?.role === 'guru';
 
   useEffect(() => {
@@ -95,7 +93,6 @@ const AssignmentDetail: React.FC = () => {
       try {
         setLoading(true);
 
-        // Fetch assignment details
         const response = await getAssignmentById(tugasId as string);
 
         if (response.data) {
@@ -103,13 +100,11 @@ const AssignmentDetail: React.FC = () => {
           setTitle(response.data.title);
           setDescription(response.data.description);
           
-          // Format the date for the input fields
           const date = new Date(response.data.deadline);
           const dateStr = date.toISOString().split('T')[0];
-          const timeStr = date.toTimeString().substring(0, 5); // HH:MM format
+          const timeStr = date.toTimeString().substring(0, 5);
           setDeadline(`${dateStr}T${timeStr}`);
 
-          // Set attachment files if any
           if (response.data.attachments) {
             setAttachmentFiles(response.data.attachments);
           }
@@ -137,7 +132,6 @@ const AssignmentDetail: React.FC = () => {
     try {
       setSaving(true);
 
-      // Update the assignment data
       const updateData = {
         title,
         description,
@@ -180,7 +174,6 @@ const AssignmentDetail: React.FC = () => {
         duration: 3000
       });
 
-      // Redirect back to mata pelajaran detail page
       router.push(`/admin/matapelajaran/${id}?tab=tugas`);
     } catch (err: any) {
       console.error("Error deleting assignment:", err);
@@ -205,21 +198,17 @@ const AssignmentDetail: React.FC = () => {
       return;
     }
 
-    // Get file extension
     const fileName = file.name;
     const fileExtension = fileName.split('.').pop()?.toLowerCase() || '';
     
-    // Define allowed file extensions
     const allowedExtensions = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'jpeg', 'jpg'];
     
-    // Check if file extension is allowed
     if (!allowedExtensions.includes(fileExtension)) {
       toast.error("Format file tidak didukung", {
         description: "Hanya file dengan format .pdf, .doc, .docx, .xls, .xlsx, .ppt, .pptx, .jpeg, dan .jpg yang diperbolehkan.",
         duration: 5000
       });
       
-      // Reset file input
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -230,17 +219,14 @@ const AssignmentDetail: React.FC = () => {
       setUploading(true);
       setUploadingFileName(file.name);
 
-      // Upload file to server
       const response = await mediaServices.uploadSingle(file);
 
       if (response.data && response.data.data) {
         const fileUrl = response.data.data.url;
         const fileName = file.name;
 
-        // Jika tampilan student, gunakan untuk mengumpulkan tugas
         if (isStudentView) {
           try {
-            // Tambahkan flag noRedirect untuk mencegah redirect ke halaman login jika terjadi error 403
             await submitAssignment(assignment._id, {
               files: [{
                 fileUrl,
@@ -253,14 +239,11 @@ const AssignmentDetail: React.FC = () => {
               duration: 3000
             });
             
-            // Set recently uploaded file to highlight it
             setRecentlyUploadedFile(fileName);
             
-            // Refresh data tugas untuk menampilkan pengumpulan terbaru
             const response = await getAssignmentById(assignment._id);
             setAssignment(response.data);
             
-            // Clear the highlight after 5 seconds
             setTimeout(() => {
               setRecentlyUploadedFile(null);
             }, 5000);
@@ -272,17 +255,14 @@ const AssignmentDetail: React.FC = () => {
               duration: 5000
             });
             
-            // Hapus file yang sudah terupload karena gagal mengumpulkan
             await mediaServices.remove(fileUrl);
           }
         } else {
-          // Create file object
           const newFileObject = {
             url: fileUrl,
             name: fileName
           };
 
-          // Add to attachments
           const updatedFiles = [...attachmentFiles, newFileObject];
           setAttachmentFiles(updatedFiles);
 
@@ -301,7 +281,6 @@ const AssignmentDetail: React.FC = () => {
     } finally {
       setUploading(false);
       setUploadingFileName(null);
-      // Reset file input
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -315,7 +294,6 @@ const AssignmentDetail: React.FC = () => {
       updatedFiles.splice(index, 1);
       setAttachmentFiles(updatedFiles);
 
-      // Remove file from server
       await mediaServices.remove(fileToDelete.url);
 
       toast.success("File berhasil dihapus!");
@@ -341,11 +319,9 @@ const AssignmentDetail: React.FC = () => {
 
   const toggleFeedbackInput = (submissionId: string, currentFeedback?: string) => {
     if (activeFeedbackSubmissionId === submissionId) {
-      // Close feedback input
       setActiveFeedbackSubmissionId(null);
       setFeedbackText('');
     } else {
-      // Open feedback input with current feedback if any
       setActiveFeedbackSubmissionId(submissionId);
       setFeedbackText(currentFeedback || '');
     }
@@ -355,18 +331,15 @@ const AssignmentDetail: React.FC = () => {
     try {
       setProcessingSubmissionId(submissionId);
 
-      // If there's active feedback, include it in the update
       const feedback = activeFeedbackSubmissionId === submissionId ? feedbackText : undefined;
 
       await updateSubmissionStatus(assignment!._id, submissionId, status, feedback);
 
-      // Refresh assignment data
       const response = await getAssignmentById(assignment!._id);
       setAssignment(response.data);
 
       toast.success(`Status pengumpulan berhasil diperbarui menjadi ${status}`);
 
-      // Reset feedback state
       setActiveFeedbackSubmissionId(null);
       setFeedbackText('');
     } catch (err: any) {
@@ -414,10 +387,8 @@ const AssignmentDetail: React.FC = () => {
     try {
       setProcessingSubmissionId(submissionToDelete);
       
-      // Delete the submission
       await deleteSubmission(assignment!._id, submissionToDelete);
       
-      // Refresh assignment data
       const response = await getAssignmentById(assignment!._id);
       setAssignment(response.data);
       
@@ -460,7 +431,6 @@ const AssignmentDetail: React.FC = () => {
         </TableHeader>
         <TableBody>
           {assignment.submissions.map((submission) => {
-            // Check if this is a testing submission (from admin/guru)
             const isTestSubmission = submission.student && 
                                     typeof submission.student === 'object' && 
                                     submission.student.fullName && 
@@ -608,10 +578,8 @@ const AssignmentDetail: React.FC = () => {
       );
     }
 
-    // Create a list of files to display including one that's uploading
     const files = [...attachmentFiles];
     
-    // Add the uploading file if there is one
     if (uploading && uploadingFileName) {
       files.push({
         url: "uploading",
@@ -622,7 +590,6 @@ const AssignmentDetail: React.FC = () => {
     return (
       <div className="space-y-3">
         {files.map((file, index) => {
-          // Check if this is the file currently being uploaded
           const isUploading = file.url === "uploading";
           
           return (
@@ -668,24 +635,18 @@ const AssignmentDetail: React.FC = () => {
     );
   };
 
-  // Toggle between admin/guru view and student view
   const toggleStudentView = () => {
     setIsStudentView(!isStudentView);
   };
 
-  // Render content in student view mode
   const renderStudentView = () => {
     if (!assignment) return null;
 
-    // Mendapatkan email murid yang sedang login
     const userEmail = session?.user?.email;
     
-    // Filter submission milik murid yang sedang login saja berdasarkan email
-    // Untuk admin dan guru, kita akan cek jika ada submission dari mereka
     const mySubmissions = assignment.submissions?.filter(sub => {
       if (!sub.student) return false;
       
-      // Check if this is a testing submission (from admin/guru)
       const isTestSubmission = typeof sub.student === 'object' && 
                               'fullName' in sub.student && 
                               typeof sub.student.fullName === 'string' &&
@@ -693,23 +654,19 @@ const AssignmentDetail: React.FC = () => {
                                sub.student.fullName.includes('Admin') || 
                                sub.student.fullName.includes('Guru'));
       
-      // For testing submissions, check if current user is admin/guru
       if (isTestSubmission && hasPermission) {
         return true;
       }
       
-      // For regular submissions, check by email
       return sub.student.email === userEmail;
     }) || [];
     
     const isDeadlinePassed = new Date(assignment.deadline) < new Date();
     
-    // Admin dan guru selalu bisa mengupload untuk testing
     const canUpload = hasPermission || !isDeadlinePassed;
     
     return (
       <div className="grid grid-cols-1 gap-6 mb-6">
-        {/* Tugas Details */}
         <Card>
           <CardBody className="p-6">
             <div className="flex items-center gap-2 mb-4">
@@ -757,7 +714,6 @@ const AssignmentDetail: React.FC = () => {
           </CardBody>
         </Card>
 
-        {/* File Attachments */}
         <Card>
           <CardBody className="p-6">
             <div className="flex items-center gap-2">
@@ -791,7 +747,6 @@ const AssignmentDetail: React.FC = () => {
           </CardBody>
         </Card>
 
-        {/* Submissions - Form to submit and view status */}
         {mySubmissions.length > 0 ? (
           <Card>
             <CardBody className="p-6">
@@ -807,12 +762,10 @@ const AssignmentDetail: React.FC = () => {
 
               <div className="flex flex-col gap-3">
                 {mySubmissions.map((submission) => {
-                  // Check if this is a testing submission
                   const isTestSubmission = typeof submission.student === 'object' && 
                                          submission.student.fullName && 
                                          (submission.student.fullName.includes('Testing'));
                                       
-                  // Check if this is a recently uploaded file
                   const isRecentlyUploaded = recentlyUploadedFile === submission.fileName;
                                      
                   return (
@@ -835,7 +788,6 @@ const AssignmentDetail: React.FC = () => {
                           })}
                         </span>
                         
-                        {/* Show delete button for testing submissions */}
                         {isTestSubmission && hasPermission && (
                           <Button
                             isIconOnly
@@ -895,7 +847,6 @@ const AssignmentDetail: React.FC = () => {
                 })}
               </div>
 
-              {/* Option to resubmit if deadline not passed or user is admin/guru */}
               {canUpload && (
                 <div className="mt-4">
                   <h4 className="text-sm mb-2">
@@ -920,7 +871,6 @@ const AssignmentDetail: React.FC = () => {
                     </Button>
                   </div>
                   
-                  {/* Show upload status */}
                   {uploading && uploadingFileName && (
                     <div className="mt-3 p-3 border rounded">
                       <div className="flex items-center gap-2">
@@ -942,7 +892,6 @@ const AssignmentDetail: React.FC = () => {
             </CardBody>
           </Card>
         ) : (
-          /* No submissions yet */
           isDeadlinePassed && !hasPermission ? (
             <Card>
               <CardBody className="p-6 text-center">
@@ -988,7 +937,6 @@ const AssignmentDetail: React.FC = () => {
                       Pilih File
                     </Button>
                     
-                    {/* Show upload status */}
                     {uploading && uploadingFileName && (
                       <div className="mt-3 p-3 border rounded">
                         <div className="flex items-center gap-2">
@@ -1106,7 +1054,6 @@ const AssignmentDetail: React.FC = () => {
 
               {isStudentView ? renderStudentView() : (
                 <div className="grid grid-cols-1 gap-6 mb-6">
-                  {/* Tugas Details */}
                   <Card>
                     <CardBody className="p-6">
                       <div className="flex items-center gap-2 mb-4">
@@ -1144,7 +1091,6 @@ const AssignmentDetail: React.FC = () => {
                     </CardBody>
                   </Card>
 
-                  {/* File Attachments */}
                   <Card>
                     <CardBody className="p-6">
                       <div className="flex items-center gap-2 mb-4">
@@ -1178,7 +1124,6 @@ const AssignmentDetail: React.FC = () => {
                     </CardBody>
                   </Card>
 
-                  {/* Submissions */}
                   <Card>
                     <CardBody className="p-6">
                       <div className="flex items-center gap-2 mb-4">
@@ -1194,7 +1139,6 @@ const AssignmentDetail: React.FC = () => {
                 </div>
               )}
 
-              {/* Delete confirmation modal */}
               <Modal
                 isOpen={isDeleteModalOpen}
                 onClose={() => setIsDeleteModalOpen(false)}
@@ -1229,7 +1173,6 @@ const AssignmentDetail: React.FC = () => {
         </PageContainer>
       </DashboardLayout>
       
-      {/* Delete Submission Modal */}
       <Modal 
         isOpen={isDeleteSubmissionModalOpen} 
         onOpenChange={(open) => {

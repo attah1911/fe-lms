@@ -23,13 +23,11 @@ const DataMataPelajaran: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
   const [selectedMataPelajaran, setSelectedMataPelajaran] = useState<ExtendedMataPelajaran>();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Delete modal states
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [selectedForDelete, setSelectedForDelete] = useState<ExtendedMataPelajaran>();
   const [isDeleting, setIsDeleting] = useState(false);
@@ -41,10 +39,8 @@ const DataMataPelajaran: React.FC = () => {
     }
     
     return data.map(item => {
-      // Ensure item exists and has necessary properties
       if (!item) return {} as ExtendedMataPelajaran;
       
-      // Handle different guru data formats
       let guruName = 'Unknown';
       if (typeof item.guru === 'object' && item.guru && item.guru.fullName) {
         guruName = item.guru.fullName;
@@ -82,7 +78,6 @@ const DataMataPelajaran: React.FC = () => {
       try {
         const response = await getMataPelajaran({ page, limit: 50, search });
         
-        // Ensure response has the expected structure
         if (!response.data || !response.pagination) {
           return {
             data: [],
@@ -225,7 +220,6 @@ const DataMataPelajaran: React.FC = () => {
         description="Halaman untuk mengelola data mata pelajaran"
       />
 
-      {/* Search and Add New Button */}
       <div className="mb-6 flex justify-between items-center">
         <SearchInput
           value={searchTerm}
@@ -242,7 +236,6 @@ const DataMataPelajaran: React.FC = () => {
         </Button>
       </div>
 
-      {/* Notifications */}
       <div className="relative z-50">
         {error && (
           <NotificationAlert
@@ -260,7 +253,6 @@ const DataMataPelajaran: React.FC = () => {
         )}
       </div>
 
-      {/* Table */}
       <DataTable
         columns={columns}
         data={mataPelajarans || []}
@@ -271,7 +263,6 @@ const DataMataPelajaran: React.FC = () => {
         isLoading={loading}
       />
 
-      {/* Modals */}
       <CreateEditMataPelajaranModal
         isOpen={isModalOpen}
         onClose={() => {

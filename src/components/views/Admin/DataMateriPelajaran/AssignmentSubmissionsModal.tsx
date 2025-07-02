@@ -70,17 +70,14 @@ const AssignmentSubmissionsModal: React.FC<AssignmentSubmissionsModalProps> = ({
     try {
       setProcessingSubmissionId(submissionId);
       
-      // If there's active feedback, include it in the update
       const feedback = activeFeedbackSubmissionId === submissionId ? feedbackText : undefined;
       
       await updateSubmissionStatus(assignmentId, submissionId, status, feedback);
       
-      // Refresh assignment data
       await fetchAssignmentDetails();
       
       setSuccess(`Status pengumpulan berhasil diperbarui menjadi ${status}`);
       
-      // Reset feedback state
       setActiveFeedbackSubmissionId(null);
       setFeedbackText('');
     } catch (err: any) {
@@ -93,11 +90,9 @@ const AssignmentSubmissionsModal: React.FC<AssignmentSubmissionsModalProps> = ({
 
   const toggleFeedbackInput = (submissionId: string, currentFeedback?: string) => {
     if (activeFeedbackSubmissionId === submissionId) {
-      // Close feedback input
       setActiveFeedbackSubmissionId(null);
       setFeedbackText('');
     } else {
-      // Open feedback input with current feedback if any
       setActiveFeedbackSubmissionId(submissionId);
       setFeedbackText(currentFeedback || '');
     }
@@ -129,7 +124,6 @@ const AssignmentSubmissionsModal: React.FC<AssignmentSubmissionsModalProps> = ({
     }
   };
 
-  // Clear success message after 3 seconds
   useEffect(() => {
     if (success) {
       const timer = setTimeout(() => {
@@ -167,7 +161,6 @@ const AssignmentSubmissionsModal: React.FC<AssignmentSubmissionsModalProps> = ({
               )}
             </ModalHeader>
             <ModalBody>
-              {/* Notifications */}
               {error && (
                 <NotificationAlert
                   type="error"

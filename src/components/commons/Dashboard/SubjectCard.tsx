@@ -13,7 +13,7 @@ interface SubjectCardProps {
   teacher: string;
   createdAt: string;
   enrolled?: boolean;
-  viewPath?: string; // Untuk memungkinkan path halaman guru atau admin
+  viewPath?: string;
 }
 
 const SubjectCard: React.FC<SubjectCardProps> = ({
@@ -24,7 +24,7 @@ const SubjectCard: React.FC<SubjectCardProps> = ({
   teacher,
   createdAt,
   enrolled = false,
-  viewPath = "/admin/matapelajaran" // Default ke URL admin
+  viewPath = "/admin/matapelajaran"
 }) => {
   const router = useRouter();
   

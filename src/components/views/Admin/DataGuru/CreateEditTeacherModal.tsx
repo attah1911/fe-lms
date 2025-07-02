@@ -12,12 +12,11 @@ interface CreateEditTeacherModalProps {
   isSubmitting?: boolean;
 }
 
-// Validation patterns
 const PATTERNS = {
-  fullName: /^[A-Za-zÀ-ÿ\s]+$/,  // Only letters and spaces
+  fullName: /^[A-Za-zÀ-ÿ\s]+$/,
   email: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-  nrk: /^\d+$/,  // Only numbers
-  phone: /^\d+$/  // Only numbers
+  nrk: /^\d+$/,
+  phone: /^\d+$/
 };
 
 const CreateEditTeacherModal: React.FC<CreateEditTeacherModalProps> = ({

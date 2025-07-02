@@ -49,7 +49,6 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
     }
   });
 
-  // Reset form when modal opens/closes
   React.useEffect(() => {
     if (isOpen) {
       reset({
@@ -60,7 +59,6 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
         mataPelajaranId: mataPelajaranId
       });
 
-      // Reset files if initialData contains attachments
       if (initialData?.attachments) {
         setAttachmentFiles(initialData.attachments);
       } else {
@@ -71,7 +69,6 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
 
   const handleFormSubmit = async (data: CreateAssignmentInput) => {
     try {
-      // Add attachment files to the data before submitting
       const dataWithAttachments = {
         ...data,
         attachments: attachmentFiles
@@ -155,7 +152,6 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
                         placeholder="Pilih tanggal"
                         value={field.value ? field.value.split('T')[0] : ''}
                         onChange={(e) => {
-                          // Combine date and time (if already set)
                           const currentValue = field.value || '';
                           const currentTime = currentValue.includes('T') ? 
                             currentValue.split('T')[1] : 
@@ -174,7 +170,6 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
                           field.value.split('T')[1] : 
                           '23:59'}
                         onChange={(e) => {
-                          // Combine date and time
                           const currentValue = field.value || '';
                           const currentDate = currentValue.includes('T') ? 
                             currentValue.split('T')[0] : 
@@ -192,7 +187,6 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
 
               <Divider className="my-4" />
               
-              {/* File upload section using the reusable FileUploader component */}
               <div>
                 <h3 className="text-sm font-medium mb-2">File Lampiran</h3>
                 <FileUploader 

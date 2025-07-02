@@ -24,13 +24,11 @@ const DataAkun: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
   const [selectedUser, setSelectedUser] = useState<User | undefined>(undefined);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Delete modal states
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [selectedUserForDelete, setSelectedUserForDelete] = useState<User | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -179,7 +177,6 @@ const DataAkun: React.FC = () => {
         description="Halaman untuk mengelola data akun pengguna"
       />
 
-      {/* Search and Add New Button */}
       <div className="mb-6 flex justify-between items-center">
         <SearchInput
           value={searchTerm}
@@ -196,7 +193,6 @@ const DataAkun: React.FC = () => {
         </Button>
       </div>
 
-      {/* Notifications */}
       <div className="relative z-50">
         {error && (
           <NotificationAlert
@@ -214,7 +210,6 @@ const DataAkun: React.FC = () => {
         )}
       </div>
 
-      {/* Table */}
       <DataTable
         columns={columns}
         data={users}
@@ -225,7 +220,6 @@ const DataAkun: React.FC = () => {
         isLoading={loading}
       />
 
-      {/* Modals */}
       {isModalOpen && (
         <CreateEditUserModal
           isOpen={true}

@@ -39,14 +39,12 @@ const Profile: React.FC = () => {
     loadProfile();
   }, []);
 
-  // Show toast notifications when errors or success messages change
   useEffect(() => {
     if (errorUpload) {
       toast.error(errorUpload);
     }
     if (successMessage) {
       toast.success(successMessage);
-      // Clear success message after showing toast
       const timer = setTimeout(() => {
         setSuccessMessage("");
       }, 3000);
@@ -127,7 +125,7 @@ const Profile: React.FC = () => {
     }
     setIsEditing(!isEditing);
     setErrors({});
-    setSuccessMessage(""); // Reset success message when toggling edit mode
+    setSuccessMessage("");
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -145,10 +143,8 @@ const Profile: React.FC = () => {
       const username = editableProfile.username.trim();
       const email = editableProfile.email.trim();
 
-      // Reset errors
       setErrors({});
 
-      // Validate fields
       const newErrors: { [key: string]: string } = {};
       
       if (!fullName.trim()) {

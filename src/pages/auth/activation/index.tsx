@@ -20,7 +20,6 @@ const ActivationPage = (props: PropTypes) => {
   useEffect(() => {
     if (status === 'success' && !isProcessing && userData?.email) {
       setIsProcessing(true);
-      // Redirect to student data form with the correct email
       router.push({
         pathname: '/auth/student-data',
         query: { email: userData.email }
@@ -50,14 +49,11 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
       };
     }
 
-    // Call the activation endpoint
     const response = await authServices.activation({ token });
     
-    // Check if we have user data in the response
     if (response?.data?.data?.user) {
       const { user } = response.data.data;
       
-      // Ensure we have the email
       if (user.email) {
         
         return {

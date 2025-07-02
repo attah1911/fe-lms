@@ -26,7 +26,6 @@ const Register: React.FC = () => {
 
   return (
     <div className="flex w-full flex-col items-center justify-center gap-6 px-4 lg:flex-row lg:gap-20">
-      {/* Back to Home Button */}
       <Link href="/" className="absolute top-6 left-6 flex items-center gap-2 text-blue-500 hover:text-blue-600 transition-colors">
         <FaArrowLeft />
         <span>Kembali ke Homepage</span>
@@ -82,7 +81,6 @@ const Register: React.FC = () => {
                   errorMessage={fieldState.error?.message}
                   description="Hanya huruf dan spasi, maksimal 50 karakter"
                   onChange={(e) => {
-                    // Only allow letters and spaces
                     const value = e.target.value.replace(/[^A-Za-z\s]/g, '');
                     field.onChange(value);
                   }}
@@ -104,7 +102,6 @@ const Register: React.FC = () => {
                   errorMessage={fieldState.error?.message}
                   description="Minimal mengandung 3 huruf, maksimal 15 karakter"
                   onChange={(e) => {
-                    // Only allow letters and numbers
                     const value = e.target.value.replace(/[^A-Za-z0-9]/g, '');
                     field.onChange(value);
                   }}

@@ -14,15 +14,13 @@ const Activation = (props: PropTypes) => {
 
   useEffect(() => {
     if (status === "success") {
-      // Show success toast
       toast.success("Aktivasi Berhasil", {
         description: "Silahkan lengkapi data murid Anda",
       });
 
-      // Add delay before redirecting to login
       const timer = setTimeout(() => {
         router.push("/auth/login");
-      }, 4000); // 2 second delay
+      }, 4000);
 
       return () => clearTimeout(timer);
     }

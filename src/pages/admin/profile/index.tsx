@@ -5,11 +5,10 @@ const AdminProfileRedirect = () => {
   const router = useRouter();
   
   useEffect(() => {
-    // Redirect to the new settings page
     router.replace('/admin/setting');
   }, [router]);
   
-  return null; // No UI needed for redirect
+  return null;
 };
 
 export default AdminProfileRedirect;

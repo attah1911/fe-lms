@@ -28,7 +28,6 @@ const DataGuru: React.FC = () => {
     current: 1,
   });
 
-  // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
   const [selectedTeacher, setSelectedTeacher] = useState<Teacher | undefined>(undefined);
@@ -94,7 +93,6 @@ const DataGuru: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  // Delete modal states
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [selectedTeacherForDelete, setSelectedTeacherForDelete] = useState<Teacher | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -167,7 +165,6 @@ const DataGuru: React.FC = () => {
         description="Halaman untuk mengelola data guru"
       />
 
-      {/* Search and Add New Button */}
       <div className="mb-6 flex justify-between items-center">
         <div className="relative w-64">
           <input
@@ -191,7 +188,6 @@ const DataGuru: React.FC = () => {
         </Button>
       </div>
 
-      {/* Notifications */}
       <div className="relative z-50">
         {error && (
           <NotificationAlert
@@ -209,14 +205,12 @@ const DataGuru: React.FC = () => {
         )}
       </div>
 
-      {/* Loading State */}
       {loading ? (
         <div className="flex justify-center items-center h-64">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
         </div>
       ) : (
         <>
-          {/* Table */}
           <div className="bg-white rounded-lg shadow overflow-hidden">
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
@@ -284,7 +278,6 @@ const DataGuru: React.FC = () => {
               </table>
             </div>
 
-            {/* Empty State */}
             {teachers.length === 0 && !loading && pagination.total === 0 && (
               <div className="text-center py-12">
                 <Image
@@ -303,7 +296,6 @@ const DataGuru: React.FC = () => {
               </div>
             )}
 
-            {/* Pagination */}
             {teachers.length > 0 && (
               <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
                 <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
@@ -395,7 +387,6 @@ const DataGuru: React.FC = () => {
         </>
       )}
 
-      {/* Modals */}
       <CreateEditTeacherModal
         isOpen={isModalOpen}
         onClose={() => {

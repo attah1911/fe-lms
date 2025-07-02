@@ -21,7 +21,6 @@ import { id } from "date-fns/locale";
 import { PaginationMeta } from "../../../../types/common";
 import NoteCard from "../../../commons/NoteCard";
 
-// Menggunakan interface Notification dan Assignment dari student.service.ts
 
 interface Subject {
   _id: string;
@@ -35,7 +34,6 @@ interface Subject {
   createdAt: string;
 }
 
-// Menggunakan PaginationMeta dari common.ts sebagai PaginationData
 
 const Dashboard: React.FC = () => {
   const { data: session } = useSession() as { data: SessionExtended | null };
@@ -46,12 +44,10 @@ const Dashboard: React.FC = () => {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [profileData, setProfileData] = useState<IProfile | null>(null);
   
-  // Notifications state
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isNotificationOpen, setIsNotificationOpen] = useState<boolean>(false);
   const [loadingNotifications, setLoadingNotifications] = useState<boolean>(false);
   
-  // Enrolled subjects state
   const [enrolledSubjects, setEnrolledSubjects] = useState<Subject[]>([]);
   const [searchResults, setSearchResults] = useState<Subject[] | null>(null);
   const [pendingAssignments, setPendingAssignments] = useState<Assignment[]>([]);
@@ -62,7 +58,6 @@ const Dashboard: React.FC = () => {
     size: 10
   });
 
-  // Todo state
   const [todos, setTodos] = useState<Todo[]>([]);
   const [loadingTodos, setLoadingTodos] = useState(false);
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -74,7 +69,6 @@ const Dashboard: React.FC = () => {
   const [todoDescription, setTodoDescription] = useState('');
   const [todoDueDate, setTodoDueDate] = useState('');
 
-  // Fetch todos
   const fetchTodos = async () => {
     try {
       setLoadingTodos(true);
@@ -93,7 +87,6 @@ const Dashboard: React.FC = () => {
       try {
         setLoading(true);
         
-        // Fetch user profile data
           try {
         const profileResponse = await authServices.getProfile();
         setProfileData(profileResponse.data.data);
@@ -101,7 +94,6 @@ const Dashboard: React.FC = () => {
             console.error('Error fetching profile:', error);
           }
         
-          // Fetch enrolled subjects
         try {
           const enrolledResponse = await getEnrolledMataPelajaran();
           setEnrolledSubjects(enrolledResponse.data || []);
@@ -115,14 +107,11 @@ const Dashboard: React.FC = () => {
             console.error('Error fetching enrolled subjects:', error);
           }
           
-          // Fetch assignments
           try {
             const assignmentsResponse = await getStudentAssignments();
             
-            // Filter untuk tugas yang masih aktif (belum melewati deadline)
             const now = new Date();
             const pending = assignmentsResponse.data.filter((assignment: any) => {
-              // Filter tugas yang deadlinenya belum terlewati
               const isDeadlineActive = new Date(assignment.deadline) > now;
               return isDeadlineActive;
             });
@@ -132,10 +121,8 @@ const Dashboard: React.FC = () => {
             console.error('Error fetching assignments:', error);
           }
           
-          // Fetch notifications
           await fetchNotifications();
           
-          // Fetch todos
           await fetchTodos();
       } catch (err: any) {
           setError(err.message || 'Failed to fetch data');
@@ -148,7 +135,6 @@ const Dashboard: React.FC = () => {
     }
   }, [session]);
 
-  // Format date
   const formatDate = (dateString?: string | Date) => {
     if (!dateString) return '-';
     try {
@@ -158,7 +144,6 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // Format relative time (today, yesterday, or date)
   const formatRelativeTime = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -173,7 +158,6 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // Reset form fields
   const resetTodoForm = () => {
     setTodoTitle('');
     setTodoDescription('');
@@ -182,13 +166,11 @@ const Dashboard: React.FC = () => {
     setIsEdit(false);
   };
 
-  // Open modal for adding new todo
   const handleAddTodo = () => {
     resetTodoForm();
     onOpen();
   };
 
-  // Open modal for editing todo
   const handleEditTodo = (todo: Todo) => {
     setCurrentTodo(todo);
     setTodoTitle(todo.title);
@@ -198,13 +180,11 @@ const Dashboard: React.FC = () => {
     onOpen();
   };
 
-  // Open confirm modal for deleting todo
   const handleConfirmDelete = (id: string) => {
     setTodoToDelete(id);
     onOpenDeleteModal();
   };
 
-  // Delete todo
   const handleDeleteTodo = async () => {
     if (!todoToDelete) return;
     
@@ -220,7 +200,6 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // Toggle todo completed status
   const handleToggleTodoStatus = async (id: string) => {
     try {
       await todoService.toggleTodoStatus(id);
@@ -230,7 +209,6 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // Save todo (create or update)
   const handleSaveTodo = async () => {
     try {
       if (!todoTitle) {
@@ -262,14 +240,11 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // Handle notification click
   const handleNotificationClick = async (notification: Notification) => {
     try {
-      // Menandai notifikasi sebagai telah dibaca
       if (!notification.isRead) {
         await markNotificationAsRead(notification._id);
         
-        // Update state notifikasi lokal
         setNotifications(prevNotifications => 
           prevNotifications.map(n => 
             n._id === notification._id ? { ...n, isRead: true } : n
@@ -277,7 +252,6 @@ const Dashboard: React.FC = () => {
         );
       }
       
-      // Mengarahkan ke halaman yang sesuai
       if (notification.type === "tugas") {
         if (notification.relatedItem) {
           router.push(`/murid/matapelajaran/${notification.mataPelajaran._id}/tugas/${notification.relatedItem}`);
@@ -293,7 +267,6 @@ const Dashboard: React.FC = () => {
       }
     } catch (error) {
       console.error("Error marking notification as read:", error);
-      // Tetap navigasi meskipun gagal menandai sebagai telah dibaca
       if (notification.type === "tugas") {
         if (notification.relatedItem) {
           router.push(`/murid/matapelajaran/${notification.mataPelajaran._id}/tugas/${notification.relatedItem}`);
@@ -310,7 +283,6 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // Mark all notifications as read
   const handleMarkAllAsRead = async () => {
     try {
       if (notifications.length === 0 || notifications.every(n => n.isRead)) {
@@ -321,7 +293,6 @@ const Dashboard: React.FC = () => {
       
       await markAllNotificationsAsRead();
       
-      // Update state notifikasi lokal
       setNotifications(prevNotifications => 
         prevNotifications.map(n => ({ ...n, isRead: true }))
       );
@@ -335,20 +306,16 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // Handle search
   const handleSearch = async (searchTerm: string) => {
     try {
       setIsSearching(true);
       setError(null);
       
-      // Jika searchTerm kosong, tampilkan semua mata pelajaran yang terdaftar
       if (!searchTerm.trim()) {
         setSearchResults(null);
         return;
       }
       
-      // Pencarian mata pelajaran dari data yang sudah diambil
-      // Pada implementasi lanjutan, ini bisa diganti dengan API endpoint khusus pencarian
       const filteredSubjects = enrolledSubjects.filter(subject => 
         subject.judul.toLowerCase().includes(searchTerm.toLowerCase()) ||
         subject.deskripsi.toLowerCase().includes(searchTerm.toLowerCase())
@@ -369,22 +336,18 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // Handle view all subjects
   const handleViewAll = () => {
     router.push("/murid/matapelajaran");
   };
 
-  // Handle view all notifications
   const handleViewAllNotifications = () => {
     router.push('/murid/notifikasi');
   };
 
-  // Toggle notification popover
   const toggleNotificationPopover = () => {
     setIsNotificationOpen(!isNotificationOpen);
   };
 
-  // Fetch notifications
   const fetchNotifications = async () => {
     try {
       setLoadingNotifications(true);
@@ -397,36 +360,27 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // Handle assignment click
-  // Using any type here to avoid TypeScript issues with the import
   const handleAssignmentClick = (assignment: any): void => {
     if (assignment && assignment.mataPelajaranId && assignment._id) {
       router.push(`/murid/matapelajaran/${assignment.mataPelajaranId._id}/tugas/${assignment._id}`);
     }
   };
 
-  // Handle marking assignment as completed/submitted
   const handleToggleAssignmentStatus = async (assignmentId: string) => {
     try {
-      // Find assignment in the list
       const assignment = pendingAssignments.find((a: any) => a._id === assignmentId);
       if (!assignment) return;
 
-      // Prevent toggling for assignments that haven't been submitted yet
       if (!assignment.isSubmitted && !assignment.submission) {
-        // If the student hasn't submitted yet, navigate to the assignment page to submit
         router.push(`/murid/matapelajaran/${assignment.mataPelajaranId._id}/tugas/${assignment._id}`);
         return;
       }
 
-      // Only toggle if already submitted
       if (assignment.submission) {
         const newStatus = assignment.isCompleted !== undefined ? !assignment.isCompleted : !assignment.isSubmitted;
         
-        // Call the API to update the status in the database
         await markAssignmentCompletion(assignmentId, newStatus);
         
-        // Update the local state to reflect the change
         setPendingAssignments(
           pendingAssignments.map((a: any) => 
             a._id === assignmentId ? { ...a, isCompleted: newStatus } : a
@@ -447,9 +401,7 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // Render subjects
   const renderSubjects = () => {
-    // If searching, show search results
     if (searchResults !== null) {
       if (searchResults.length === 0) {
         return (
@@ -481,7 +433,6 @@ const Dashboard: React.FC = () => {
       );
     }
 
-    // Otherwise, show enrolled subjects
     if (!enrolledSubjects || enrolledSubjects.length === 0) {
       return (
         <Card>
@@ -512,7 +463,6 @@ const Dashboard: React.FC = () => {
     );
   };
 
-  // Render notifications
   const renderNotifications = () => {
     if (loadingNotifications) {
       return (
@@ -531,7 +481,6 @@ const Dashboard: React.FC = () => {
       );
     }
     
-    // Limit to showing only 3 notifications max
     const displayNotifications = notifications.slice(0, 3);
 
     return (
@@ -602,7 +551,6 @@ const Dashboard: React.FC = () => {
 
   return (
     <PageContainer>
-      {/* Header section with responsive design - Mobile matches Guru, Desktop stays the same */}
       <div className="flex flex-row justify-between items-center mb-6 md:flex-row md:items-center md:mb-6">
         <div className="flex-1">
           <PageHeader 
@@ -618,7 +566,6 @@ const Dashboard: React.FC = () => {
             onOpenChange={(open) => {
               setIsNotificationOpen(open);
               if (open) {
-                // Refresh notifications when popover opens
                 fetchNotifications();
               }
             }}
@@ -667,7 +614,6 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Notifications */}
       {error && (
         <div className="mb-6 md:mb-4">
           <NotificationAlert
@@ -688,14 +634,12 @@ const Dashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Main Content */}
       {loading ? (
         <div className="flex justify-center my-12">
           <Spinner size="lg" color="primary" />
         </div>
       ) : (
         <>
-          {/* Mobile view: User Profile Card separately, similar to Guru dashboard */}
           <div className="block md:hidden mb-6">
             <UserProfileCard 
               user={profileData ? {
@@ -707,7 +651,6 @@ const Dashboard: React.FC = () => {
             />
           </div>
 
-          {/* Mobile: Statistics Cards in Guru-like layout */}
           <div className="grid grid-cols-1 gap-4 mb-6 md:hidden">
             <StatisticsCard
               title="Mata Pelajaran"
@@ -723,7 +666,6 @@ const Dashboard: React.FC = () => {
             />
           </div>
 
-          {/* Desktop: Original layout with UserProfileCard and stats side by side */}
           <div className="hidden md:grid md:grid-cols-3 md:gap-5 md:mb-5">
             <div className="col-span-1">
               <UserProfileCard 
@@ -753,9 +695,7 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* Notes and Assignments section - responsive styling */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5 mb-6 md:mb-5">
-            {/* Notes/Todos Section */}
             <Card>
               <CardBody className="p-4 md:p-3">
                 <div className="flex items-center justify-between mb-4 md:mb-3">
@@ -808,7 +748,6 @@ const Dashboard: React.FC = () => {
               </CardBody>
             </Card>
 
-            {/* Pending Assignments - with responsive styling */}
             <Card>
               <CardBody className="p-4 md:p-3">
                 <div className="flex items-center justify-between mb-4 md:mb-3">
@@ -846,12 +785,12 @@ const Dashboard: React.FC = () => {
                                   e.stopPropagation();
                                   handleToggleAssignmentStatus(assignment._id);
                                 }} 
-                                className="relative z-20 p-1" // Added padding to increase hit area
+                                className="relative z-20 p-1"
                               >
                                 <Checkbox
                                   isSelected={assignment.isCompleted || assignment.isSubmitted}
-                                  className="cursor-pointer scale-110" // Increased scale by 10%
-                                  size="md" // Changed from sm to md
+                                  className="cursor-pointer scale-110"
+                                  size="md"
                                   color="success"
                                 />
                               </div>
@@ -909,7 +848,6 @@ const Dashboard: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:gap-5 mb-3 sm:mb-5">
-          {/* Subject Search */}
             <Card>
               <CardBody className="p-3 sm:p-4">
                 <h3 className="text-base sm:text-lg font-semibold mb-2 sm:mb-3">Cari Mata Pelajaran</h3>
@@ -927,7 +865,6 @@ const Dashboard: React.FC = () => {
             </CardBody>
           </Card>
 
-          {/* Subjects */}
             <div>
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">
@@ -953,7 +890,6 @@ const Dashboard: React.FC = () => {
         </>
       )}
 
-      {/* Todo Modal */}
       <Modal isOpen={isOpen} onClose={onClose}>
         <ModalContent>
           <ModalHeader>{isEdit ? 'Edit Catatan' : 'Tambah Catatan Baru'}</ModalHeader>
@@ -990,7 +926,6 @@ const Dashboard: React.FC = () => {
         </ModalContent>
       </Modal>
 
-      {/* Delete Confirmation Modal */}
       <Modal isOpen={isDeleteModalOpen} onClose={onCloseDeleteModal}>
         <ModalContent>
           <ModalHeader className="flex gap-1">

@@ -25,7 +25,6 @@ const StatisticsCard: React.FC<StatisticsCardProps> = ({
     danger: "bg-red-50 text-red-500"
   };
 
-  // Use count if provided, otherwise use value (for backwards compatibility)
   const displayValue = count !== undefined ? count : (value || 0);
 
   return (

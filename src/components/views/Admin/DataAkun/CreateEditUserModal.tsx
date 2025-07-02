@@ -32,9 +32,8 @@ const ROLES = [
   { label: 'Murid', value: 'murid' },
 ];
 
-// Validation patterns
 const PATTERNS = {
-  fullName: /^[A-Za-zÀ-ÿ\s]+$/,  // Allow letters, spaces and accented characters
+  fullName: /^[A-Za-zÀ-ÿ\s]+$/,
   username: /^[a-zA-Z0-9_-]+$/,
   email: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i
 };
@@ -63,16 +62,14 @@ const CreateEditUserModal: React.FC<CreateEditUserModalProps> = ({
       password: "",
       confirmPassword: "",
     },
-    mode: "onChange" // Enable real-time validation
+    mode: "onChange"
   });
 
   const handleFormSubmit = async (data: UserSubmitData) => {
     try {
-      // Trigger validation for all fields before submitting
       const isValid = await trigger();
       if (!isValid) return;
 
-      // Remove confirmPassword before submitting
       const { confirmPassword, ...submitData } = data;
       
       await onSubmit(submitData);

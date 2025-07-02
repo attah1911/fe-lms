@@ -41,11 +41,9 @@ const MateriPelajaranDetail: React.FC = () => {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isStudentView, setIsStudentView] = useState(false);
   
-  // Check if user has permission (admin or guru)
   const hasPermission = session?.user?.role === 'admin' || session?.user?.role === 'guru';
 
   useEffect(() => {
-    // Store the mataPelajaranId in localStorage for API calls
     if (id) {
       localStorage.setItem('currentMataPelajaranId', id as string);
     }
@@ -56,7 +54,6 @@ const MateriPelajaranDetail: React.FC = () => {
       try {
         setLoading(true);
         
-        // Fetch materi pelajaran details
         const materiResponse = await getMateriPelajaranById(materiId as string);
         
         if (materiResponse.data) {
@@ -86,7 +83,6 @@ const MateriPelajaranDetail: React.FC = () => {
     try {
       setSaving(true);
       
-      // Ensure all files are in the object format for consistency
       const formattedFiles = Array.isArray(materi.konten.files)
         ? materi.konten.files.map(file => {
             if (typeof file === 'string') {
@@ -99,7 +95,6 @@ const MateriPelajaranDetail: React.FC = () => {
           })
         : [];
       
-      // Update content with text and files
       const updateData = {
         ...materi,
         konten: {
@@ -111,7 +106,6 @@ const MateriPelajaranDetail: React.FC = () => {
       
       await updateMateriPelajaran(materi._id, updateData);
       
-      // Update local state
       setMateri({
         ...materi,
         konten: {
@@ -139,7 +133,6 @@ const MateriPelajaranDetail: React.FC = () => {
     }
   };
 
-  // Toggle between admin/guru view and student view
   const toggleStudentView = () => {
     setIsStudentView(!isStudentView);
   };
@@ -157,7 +150,6 @@ const MateriPelajaranDetail: React.FC = () => {
         duration: 3000
       });
       
-      // Redirect back to mata pelajaran detail page
       router.push(`/guru/matapelajaran/${id}`);
     } catch (err: any) {
       console.error("Error deleting material:", err);
@@ -186,25 +178,21 @@ const MateriPelajaranDetail: React.FC = () => {
       setUploading(true);
       setUploadingFileName(file.name);
       
-      // Upload file to server
       const response = await mediaServices.uploadSingle(file);
       
       if (response.data && response.data.data) {
         const fileUrl = response.data.data.url;
-        const fileName = file.name; // Get original filename
+        const fileName = file.name;
         
-        // Create file object with url and name
         const newFileObject = {
           url: fileUrl,
           name: fileName
         };
         
-        // Convert existing string URLs to object format for consistency
         const currentFiles = materi.konten.files || [];
         const updatedFilesForBackend = [
           ...currentFiles.map(file => {
             if (typeof file === 'string') {
-              // Convert string URLs to object format
               return { 
                 url: file, 
                 name: getFileNameFromUrl(file)
@@ -212,10 +200,9 @@ const MateriPelajaranDetail: React.FC = () => {
             }
             return file;
           }),
-          newFileObject // Add the new file
+          newFileObject
         ];
         
-        // Prepare data for backend (now sending objects with url and name)
         const updateData = {
           ...materi,
           konten: {
@@ -226,7 +213,6 @@ const MateriPelajaranDetail: React.FC = () => {
         
         await updateMateriPelajaran(materi._id, updateData);
         
-        // Update local state with the file objects
         setMateri({
           ...materi,
           konten: {
@@ -252,7 +238,6 @@ const MateriPelajaranDetail: React.FC = () => {
     } finally {
       setUploading(false);
       setUploadingFileName(null);
-      // Reset file input
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -267,16 +252,12 @@ const MateriPelajaranDetail: React.FC = () => {
     if (!materi) return;
     
     try {
-      // Extract URL from file object (support both string and object formats)
       const fileUrl = typeof fileObj === 'string' ? fileObj : fileObj.url;
       
-      // Set this specific file as loading
       setDeletingFileId(fileUrl);
       
-      // Remove file from server
       await mediaServices.remove(fileUrl);
       
-      // Filter out the deleted file
       const updatedFiles = Array.isArray(materi.konten.files) 
         ? materi.konten.files.filter(file => {
             if (typeof file === 'string') {
@@ -286,7 +267,6 @@ const MateriPelajaranDetail: React.FC = () => {
           })
         : [];
       
-      // Ensure all files are in the object format for consistency
       const formattedFiles = updatedFiles.map(file => {
         if (typeof file === 'string') {
           return { 
@@ -297,7 +277,6 @@ const MateriPelajaranDetail: React.FC = () => {
         return file;
       });
       
-      // Send only objects to backend
       const updateData = {
         ...materi,
         konten: {
@@ -308,7 +287,6 @@ const MateriPelajaranDetail: React.FC = () => {
       
       await updateMateriPelajaran(materi._id, updateData);
       
-      // Update local state with full objects
       setMateri({
         ...materi,
         konten: {
@@ -335,38 +313,30 @@ const MateriPelajaranDetail: React.FC = () => {
   };
 
   const getFileNameFromUrl = (fileUrl: string) => {
-    // Extract filename from URL
     if (typeof fileUrl !== 'string') return 'File';
     
     const urlParts = fileUrl.split('/');
     const fullFileName = urlParts[urlParts.length - 1];
     
-    // Decode URI components and remove timestamp prefix if present
     let fileName = decodeURIComponent(fullFileName);
     const timestampRegex = /^\d+_/;
     fileName = fileName.replace(timestampRegex, '');
     
-    // Replace underscores with spaces for better readability
     fileName = fileName.replace(/_/g, ' ');
     
     return fileName;
   };
 
-  // Add handler for file downloads
   const handleDownloadFile = (file: any) => {
     const fileUrl = typeof file === 'string' ? file : file.url;
     
-    // Get the proper filename with extension
     let fileName: string;
     
     if (typeof file === 'string') {
-      // For backwards compatibility with old data format
       fileName = getFileNameFromUrl(file);
     } else if (file.name) {
-      // For new format with stored filename
       fileName = file.name;
       
-      // Ensure file has extension (especially for docx files from Cloudinary)
       if (fileUrl.includes('/documents/word/') && !fileName.toLowerCase().endsWith('.docx')) {
         fileName += '.docx';
       } else if (fileUrl.includes('/documents/pdf/') && !fileName.toLowerCase().endsWith('.pdf')) {
@@ -376,7 +346,6 @@ const MateriPelajaranDetail: React.FC = () => {
       } else if (fileUrl.includes('/documents/presentations/') && 
                 !fileName.toLowerCase().endsWith('.pptx') && 
                 !fileName.toLowerCase().endsWith('.ppt')) {
-        // Only add extension if the file doesn't already have a PowerPoint extension
         fileName += '.pptx';
       }
     } else {
@@ -395,10 +364,8 @@ const MateriPelajaranDetail: React.FC = () => {
       );
     }
 
-    // If a file is being uploaded, show it in the list with a loading state
     const files = [...materi.konten.files];
     
-    // Add the uploading file at the end if there's one being uploaded
     if (uploading && uploadingFileName) {
       files.push({
         url: "uploading",
@@ -409,14 +376,11 @@ const MateriPelajaranDetail: React.FC = () => {
     return (
       <div className="space-y-3">
         {files.map((file, index) => {
-          // Handle both string URLs and object format with url and name properties
           const fileUrl = typeof file === 'string' ? file : file.url;
           const fileName = typeof file === 'string' ? getFileNameFromUrl(file) : file.name;
           
-          // Check if this specific file is being deleted
           const isDeleting = deletingFileId === fileUrl;
           
-          // Check if this is the file currently being uploaded
           const isUploading = fileUrl === "uploading";
           
           return (
@@ -466,7 +430,6 @@ const MateriPelajaranDetail: React.FC = () => {
     );
   };
 
-  // Render content in student view mode
   const renderStudentView = () => {
     if (!materi) return null;
 
@@ -515,7 +478,6 @@ const MateriPelajaranDetail: React.FC = () => {
     );
   };
 
-  // Render content in admin/guru view mode
   const renderAdminView = () => {
     return (
       <div className="grid grid-cols-1 gap-6 mb-6">
@@ -659,7 +621,6 @@ const MateriPelajaranDetail: React.FC = () => {
 
             {isStudentView ? renderStudentView() : renderAdminView()}
             
-            {/* Delete confirmation modal */}
             <Modal
               isOpen={isDeleteModalOpen}
               onClose={() => setIsDeleteModalOpen(false)}

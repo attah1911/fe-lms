@@ -9,7 +9,6 @@ interface PaginationParams {
   mataPelajaran?: string;
 }
 
-// Get all materi pelajaran
 export const getMateriPelajaran = async (params?: PaginationParams) => {
   try {
     const response = await instance.get(endpoint.MATERI_PELAJARAN, { params });
@@ -19,11 +18,8 @@ export const getMateriPelajaran = async (params?: PaginationParams) => {
   }
 };
 
-// Get materi pelajaran by ID
 export const getMateriPelajaranById = async (id: string) => {
   try {
-    // Extract mataPelajaranId from localStorage or other source
-    // In a real app, this would be better handled through context or state management
     const mataPelajaranId = localStorage.getItem('currentMataPelajaranId');
     
     if (!mataPelajaranId) {
@@ -37,16 +33,13 @@ export const getMateriPelajaranById = async (id: string) => {
   }
 };
 
-// Get materi pelajaran by mata pelajaran ID
 export const getMateriByMataPelajaranId = async (mataPelajaranId: string, params?: PaginationParams) => {
   try {
-    // Create config with proper type casting
     const config: CustomRequestConfig = { 
       params: params || {},
       noRedirect: true
     };
     
-    // Use the consistent URL structure with mataPelajaranId in the path
     const response = await instance.get(`${endpoint.MATA_PELAJARAN}/${mataPelajaranId}/materi`, config);
     return response.data;
   } catch (error: any) {
@@ -54,51 +47,40 @@ export const getMateriByMataPelajaranId = async (mataPelajaranId: string, params
   }
 };
 
-// Create materi pelajaran
 export const createMateriPelajaran = async (mataPelajaranId: string, data: any) => {
   try {
-    // Get the current session to check token
     const session = await import('next-auth/react').then(mod => mod.getSession());
     
-    // Create config with proper type casting
     const config: CustomRequestConfig = {
       noRedirect: true,
       headers: {
-        // Add explicit authorization header for debugging
         "Authorization": session?.accessToken ? `Bearer ${session.accessToken}` : ""
       }
     };
     
-    // Add mataPelajaran field to the request body
     const requestData = {
       ...data,
       mataPelajaran: mataPelajaranId
     };
     
-    // Use the correct URL structure with mataPelajaranId in the path
     const response = await instance.post(`${endpoint.MATA_PELAJARAN}/${mataPelajaranId}/materi`, requestData, config);
     return response.data;
   } catch (error: any) {
-    // Log full error details for debugging
     console.error("Full error response:", error);
     console.error("Response data:", error.response?.data);
     console.error("Response status:", error.response?.status);
     console.error("Response headers:", error.response?.headers);
     
-    // For now, just pass through the raw error message
     if (error.response?.data?.meta?.message) {
       throw new Error(error.response.data.meta.message);
     }
     
-    // Generic error fallback
     throw new Error(error.message || "Failed to create materi pelajaran");
   }
 };
 
-// Update materi pelajaran
 export const updateMateriPelajaran = async (id: string, data: any) => {
   try {
-    // Extract mataPelajaranId from the data or localStorage
     const mataPelajaranId = data.mataPelajaran || localStorage.getItem('currentMataPelajaranId');
     
     if (!mataPelajaranId) {
@@ -117,10 +99,8 @@ export const updateMateriPelajaran = async (id: string, data: any) => {
   }
 };
 
-// Delete materi pelajaran
 export const deleteMateriPelajaran = async (id: string) => {
   try {
-    // Extract mataPelajaranId from localStorage or other source
     const mataPelajaranId = localStorage.getItem('currentMataPelajaranId');
     
     if (!mataPelajaranId) {

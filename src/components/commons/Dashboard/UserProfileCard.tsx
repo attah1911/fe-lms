@@ -7,7 +7,6 @@ interface UserProfileCardProps {
 }
 
 const UserProfileCard: React.FC<UserProfileCardProps> = ({ user }) => {
-  // Function to map role to user-friendly display
   const formatRole = (role: string): string => {
     switch (role) {
       case "ADMIN":

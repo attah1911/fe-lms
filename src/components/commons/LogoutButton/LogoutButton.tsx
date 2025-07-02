@@ -5,7 +5,6 @@ import { CiLogout } from "react-icons/ci";
 
 const LogoutButton: React.FC = () => {
   const handleLogout = async () => {
-    // Sign out and redirect to the login page using a relative URL
     await signOut({ 
       callbackUrl: '/auth/login',
       redirect: true 

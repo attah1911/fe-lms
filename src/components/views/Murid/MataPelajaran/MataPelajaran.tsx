@@ -52,7 +52,6 @@ const MataPelajaran: React.FC = () => {
       try {
         setLoading(true);
         
-        // Fetch all mata pelajaran first
         const allSubjectsResponse = await getMataPelajaran();
         
 
@@ -61,7 +60,6 @@ const MataPelajaran: React.FC = () => {
           allSubjectsData = allSubjectsResponse.data;
         }
 
-        // Then fetch enrolled mata pelajaran to mark which ones are enrolled
         const enrolledResponse = await getEnrolledMataPelajaran();
         
         
@@ -71,7 +69,6 @@ const MataPelajaran: React.FC = () => {
         }
         setEnrolledSubjectsIds(enrolledIds);
         
-        // Mark enrolled subjects
         const markedSubjects = allSubjectsData.map(subject => ({
           ...subject,
           enrolled: enrolledIds.includes(subject._id)
@@ -79,7 +76,6 @@ const MataPelajaran: React.FC = () => {
         
         setAllSubjects(markedSubjects);
         
-        // Set pagination data from response
         setPagination({
           total: allSubjectsResponse.meta?.pagination?.total || markedSubjects.length,
           totalPages: allSubjectsResponse.meta?.pagination?.totalPages || Math.ceil(markedSubjects.length / 6),
@@ -102,7 +98,6 @@ const MataPelajaran: React.FC = () => {
     }
   }, [session]);
 
-  // Handle search
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -127,7 +122,6 @@ const MataPelajaran: React.FC = () => {
     });
   };
 
-  // Handle clear search
   const handleClearSearch = () => {
     setSearchTerm('');
     setFilteredSubjects(null);
@@ -139,7 +133,6 @@ const MataPelajaran: React.FC = () => {
     });
   };
 
-  // Handle page change
   const handlePageChange = (page: number) => {
     setPagination(prev => ({
       ...prev,
@@ -147,7 +140,6 @@ const MataPelajaran: React.FC = () => {
     }));
   };
 
-  // Get current subjects based on pagination
   const getCurrentSubjects = () => {
     const subjects = filteredSubjects !== null ? filteredSubjects : allSubjects;
     const pageSize = pagination.size || 6;
@@ -157,7 +149,6 @@ const MataPelajaran: React.FC = () => {
     return subjects.slice(startIndex, endIndex);
   };
 
-  // Render subjects
   const renderSubjects = () => {
     const currentSubjects = getCurrentSubjects();
     
@@ -194,7 +185,6 @@ const MataPelajaran: React.FC = () => {
     );
   };
 
-  // Render pagination
   const renderPagination = () => {
     if (pagination.totalPages <= 1) return null;
     
@@ -224,7 +214,6 @@ const MataPelajaran: React.FC = () => {
       </div>
       
       <div className="flex flex-col gap-4">
-        {/* Search */}
         <form onSubmit={handleSearch} className="mb-4">
           <div className="flex gap-2">
             <Input
@@ -246,7 +235,6 @@ const MataPelajaran: React.FC = () => {
           </div>
         </form>
 
-        {/* Status message */}
         {error && (
           <NotificationAlert
             type="error"
@@ -255,17 +243,14 @@ const MataPelajaran: React.FC = () => {
           />
         )}
 
-        {/* Loading state */}
         {loading ? (
           <div className="flex justify-center my-12">
             <Spinner size="lg" color="primary" />
           </div>
         ) : (
           <>
-            {/* Subjects grid */}
             {renderSubjects()}
             
-            {/* Pagination */}
             {renderPagination()}
           </>
         )}

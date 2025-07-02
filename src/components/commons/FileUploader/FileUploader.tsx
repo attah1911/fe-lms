@@ -20,7 +20,6 @@ const FileUploader: React.FC<FileUploaderProps> = ({
   const [uploadingFileName, setUploadingFileName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Convert any string URLs to object format for consistency
   const normalizedFiles = files.map(file => {
     if (typeof file === 'string') {
       return { 
@@ -44,18 +43,14 @@ const FileUploader: React.FC<FileUploaderProps> = ({
       return;
     }
     
-    // Get file extension
     const fileName = file.name;
     const fileExtension = fileName.split('.').pop()?.toLowerCase() || '';
     
-    // Define allowed file extensions
     const allowedExtensions = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'jpeg', 'jpg'];
     
-    // Check if file extension is allowed
     if (!allowedExtensions.includes(fileExtension)) {
       setError("Format file tidak didukung. Hanya file dengan format .pdf, .doc, .docx, .xls, .xlsx, .ppt, .pptx, .jpeg, dan .jpg yang diperbolehkan.");
       
-      // Reset file input
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -66,20 +61,17 @@ const FileUploader: React.FC<FileUploaderProps> = ({
       setUploading(true);
       setUploadingFileName(file.name);
       
-      // Upload file to server
       const response = await mediaServices.uploadSingle(file);
       
       if (response.data && response.data.data) {
         const fileUrl = response.data.data.url;
-        const fileName = file.name; // Get original filename
+        const fileName = file.name;
         
-        // Create file object with url and name
         const newFileObject = {
           url: fileUrl,
           name: fileName
         };
         
-        // Add the new file to the list
         const updatedFiles = [...normalizedFiles, newFileObject];
         onFilesChange(updatedFiles);
         
@@ -91,7 +83,6 @@ const FileUploader: React.FC<FileUploaderProps> = ({
     } finally {
       setUploading(false);
       setUploadingFileName(null);
-      // Reset file input
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -102,12 +93,10 @@ const FileUploader: React.FC<FileUploaderProps> = ({
     try {
       const fileToRemove = normalizedFiles[index];
       
-      // Remove from state first for UI responsiveness
       const updatedFiles = [...normalizedFiles];
       updatedFiles.splice(index, 1);
       onFilesChange(updatedFiles);
       
-      // Then remove from server
       await mediaServices.remove(fileToRemove.url);
     } catch (err: any) {
       console.error("Error deleting file:", err);
@@ -156,7 +145,6 @@ const FileUploader: React.FC<FileUploaderProps> = ({
         <p className="text-xs leading-tight">Ukuran maks: 10MB</p>
       </div>
       
-      {/* File list */}
       <div className="space-y-1">
         {normalizedFiles.map((file, index) => (
           <div key={index} className="flex items-center justify-between p-1 border rounded-md">

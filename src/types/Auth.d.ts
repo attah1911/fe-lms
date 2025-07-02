@@ -29,7 +29,6 @@ export interface ILogin {
   password: string;
 }
 
-// Form data interface
 export interface IRegisterForm {
   fullName: string;
   username: string;
@@ -38,13 +37,12 @@ export interface IRegisterForm {
   confirmPassword: string;
 }
 
-// API request interface
 export interface IRegister extends IRegisterForm {
   role: string;
 }
 
 export interface IActivation {
-  token: string;  // Changed from 'code' to 'token' to match the email link parameter
+  token: string;
 }
 
 export interface IStudentData {

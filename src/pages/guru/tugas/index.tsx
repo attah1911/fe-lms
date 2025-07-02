@@ -53,17 +53,14 @@ const TeacherAssignmentsPage: React.FC = () => {
   const [showError, setShowError] = useState(false);
   const [loadingMateri, setLoadingMateri] = useState(false);
   
-  // Fetch all mata pelajaran for the teacher
   const fetchMataPelajaran = useCallback(async () => {
     try {
       setLoading(true);
       const response = await getGuruMataPelajaran({ limit: 100 });
       
       if (response && response.data && response.data.length > 0) {
-        // Store the basic mata pelajaran data first
         setMataPelajaranList(response.data);
         
-        // Now fetch materi for each mata pelajaran
         await fetchMateriForMataPelajaran(response.data);
       } else {
         
@@ -77,8 +74,6 @@ const TeacherAssignmentsPage: React.FC = () => {
     }
   }, []);
 
-  // Fetch materi for each mata pelajaran
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const fetchMateriForMataPelajaran = useCallback(async (mataPelajaranData: ExtendedMataPelajaran[]) => {
     setLoadingMateri(true);
     const updatedMataPelajaranList: ExtendedMataPelajaran[] = [];
@@ -88,39 +83,30 @@ const TeacherAssignmentsPage: React.FC = () => {
         const materiResponse = await getMateriByMataPelajaranId(mp._id as string);
         
         if (materiResponse && materiResponse.data) {
-          // Add materi data to the mata pelajaran object
           updatedMataPelajaranList.push({
             ...mp,
             materiPelajaranList: materiResponse.data
           });
         } else {
-          // No materi found, keep the original mata pelajaran
           updatedMataPelajaranList.push(mp);
         }
       } catch (err) {
         console.error(`Error fetching materi for mata pelajaran ${mp._id}:`, err);
-        // Keep original mata pelajaran even if there was an error
         updatedMataPelajaranList.push(mp);
       }
     }
     
-    // Update the state with mata pelajaran that include materi data
     setMataPelajaranList(updatedMataPelajaranList);
     setLoadingMateri(false);
     
-    // Now fetch assignments using the updated list with materi data
     await fetchAssignmentsForMataPelajaran(updatedMataPelajaranList);
   }, []);
   
-  // Separate function to fetch assignments for specific mata pelajaran list
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const fetchAssignmentsForMataPelajaran = useCallback(async (mataPelajaranData: ExtendedMataPelajaran[]) => {
     try {
       let allAssignments: ExtendedAssignment[] = [];
       
-      // Loop through each mata pelajaran
       for (const mataPelajaran of mataPelajaranData) {
-        // Get all materials for this mata pelajaran
         if (mataPelajaran.materiPelajaranList && mataPelajaran.materiPelajaranList.length > 0) {
           
           for (const materi of mataPelajaran.materiPelajaranList) {
@@ -128,7 +114,6 @@ const TeacherAssignmentsPage: React.FC = () => {
               const response = await getAssignmentsByMateriId(materi._id);
               
               if (response && response.data) {
-                // Add mata pelajaran and materi titles to each assignment
                 const assignmentsWithContext = response.data.map((assignment: Assignment) => ({
                   ...assignment,
                   mataPelajaranTitle: mataPelajaran.judul,
@@ -138,7 +123,6 @@ const TeacherAssignmentsPage: React.FC = () => {
               }
             } catch (err) {
               console.error(`Error fetching assignments for materi ${materi._id}:`, err);
-              // Continue to next materi even if one fails
             }
           }
         } else {
@@ -146,7 +130,6 @@ const TeacherAssignmentsPage: React.FC = () => {
         }
       }
       
-      // Sort assignments by creation date (newest first)
       allAssignments.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       
       setAssignments(allAssignments);
@@ -160,12 +143,10 @@ const TeacherAssignmentsPage: React.FC = () => {
     }
   }, []);
   
-  // Initial data fetch
   useEffect(() => {
     fetchMataPelajaran();
   }, [fetchMataPelajaran]);
 
-  // Filter assignments based on selected filters
   const filteredAssignments = assignments.filter((assignment) => {
     if (selectedMataPelajaran !== "all" && assignment.mataPelajaranId !== selectedMataPelajaran) {
       return false;
@@ -173,12 +154,10 @@ const TeacherAssignmentsPage: React.FC = () => {
     return true;
   });
   
-  // View assignment details
   const handleViewAssignment = (assignment: ExtendedAssignment) => {
     router.push(`/guru/matapelajaran/${assignment.mataPelajaranId}/tugas/${assignment._id}`);
   };
   
-  // Format date to locale string
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('id-ID', {
@@ -190,29 +169,25 @@ const TeacherAssignmentsPage: React.FC = () => {
     });
   };
   
-  // Check if deadline has passed
   const isDeadlinePassed = (deadline: string) => {
     const now = new Date();
     const deadlineDate = new Date(deadline);
     return deadlineDate < now;
   };
 
-  // Calculate grading progress - based on submissions actually graded (having a score)
   const calculateGradingProgress = (assignment: ExtendedAssignment) => {
     if (!assignment.submissions || assignment.submissions.length === 0) {
-      return 0; // No submissions means 0% progress
+      return 0;
     }
     
-    // Include only submissions with status REVIEWED (only these can be graded)
     const acceptableSubmissions = assignment.submissions.filter(
       submission => submission.status === SubmissionStatus.REVIEWED
     );
     
     if (acceptableSubmissions.length === 0) {
-      return 0; // No acceptable submissions means 0% progress
+      return 0;
     }
     
-    // Count submissions that have actually been graded (have a score value)
     const gradedCount = acceptableSubmissions.filter(
       submission => submission.score !== undefined
     ).length;
@@ -239,7 +214,6 @@ const TeacherAssignmentsPage: React.FC = () => {
         )}
         
         <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          {/* Filter select */}
           <div className="flex flex-col gap-4 md:flex-row">
             <div className="max-w-xs">
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -305,7 +279,6 @@ const TeacherAssignmentsPage: React.FC = () => {
                         <p><strong>Pengumpulan:</strong> {assignment.submissions?.length || 0} tugas</p>
                       </div>
                       
-                      {/* Add progress bar for grading */}
                       <div className="mb-3">
                         <div className="flex justify-between items-center mb-1">
                           <span className="text-xs font-medium">Progress Penilaian</span>

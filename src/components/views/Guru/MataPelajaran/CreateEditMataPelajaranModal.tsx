@@ -42,35 +42,28 @@ const CreateEditMataPelajaranModal = ({
     },
   });
 
-  // Watch for value changes
   const kategori = watch('kategori');
   const tingkatKelas = watch('tingkatKelas');
   const [isAutoTitleEnabled, setIsAutoTitleEnabled] = useState(true);
 
-  // Auto generate title when values change
   useEffect(() => {
     if (!isAutoTitleEnabled || mode === 'edit') return;
     
-    // Only generate title if all required fields are filled
     if (kategori && tingkatKelas && teacherId) {
       const titleTemplate = `${kategori} | ${tingkatKelas} | ${teacherName}`;
       setValue('judul', titleTemplate);
     }
   }, [kategori, tingkatKelas, teacherId, setValue, isAutoTitleEnabled, mode, teacherName]);
 
-  // Reset form when modal opens/closes or when initialData changes
   useEffect(() => {
     if (isOpen && initialData) {
-      // Set each field individually to ensure proper type handling
       setValue('judul', initialData.judul || '');
       setValue('kategori', initialData.kategori || '');
       setValue('deskripsi', initialData.deskripsi || '');
       setValue('tingkatKelas', initialData.tingkatKelas || '');
       
-      // Always use the current teacher for guru field
       setValue('guru', teacherId);
 
-      // Disable auto title in edit mode
       setIsAutoTitleEnabled(false);
     } else {
       reset({
@@ -80,7 +73,6 @@ const CreateEditMataPelajaranModal = ({
         guru: teacherId,
         tingkatKelas: "",
       });
-      // Enable auto title in create mode
       setIsAutoTitleEnabled(mode === 'create');
     }
   }, [isOpen, initialData, setValue, reset, mode, teacherId]);
@@ -96,7 +88,6 @@ const CreateEditMataPelajaranModal = ({
     handleSubmit(handleFormSubmit)();
   };
 
-  // Helper function to get selected keys for Select components
   const getSelectedKeys = (value: string | undefined) => {
     if (!value) return new Set<string>();
     return new Set([value]);
@@ -122,10 +113,8 @@ const CreateEditMataPelajaranModal = ({
     </>
   );
 
-  // Handle manual change of title
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (mode === 'create' && e.target.value !== '') {
-      // If user manually edits title, disable auto-generation
       setIsAutoTitleEnabled(false);
     }
   };
@@ -229,7 +218,6 @@ const CreateEditMataPelajaranModal = ({
           )}
         />
 
-        {/* Display teacher name as read-only field */}
         <Input
           label="Guru"
           value={teacherName}

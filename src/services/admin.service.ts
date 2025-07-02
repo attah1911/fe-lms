@@ -10,7 +10,6 @@ interface PaginationParams {
   search?: string;
 }
 
-// Users (Data Akun)
 export const getUsers = async (params?: PaginationParams) => {
   try {
     const response = await instance.get(endpoint.USERS, { params });
@@ -20,7 +19,6 @@ export const getUsers = async (params?: PaginationParams) => {
   }
 };
 
-// Teachers (Data Guru)
 export const getTeachers = async (params?: PaginationParams) => {
   try {
     const response = await instance.get(endpoint.TEACHERS, { params });
@@ -30,7 +28,6 @@ export const getTeachers = async (params?: PaginationParams) => {
   }
 };
 
-// Students (Data Murid)
 export const getStudents = async (params?: PaginationParams) => {
   try {
     const response = await instance.get(endpoint.STUDENTS, { params });
@@ -40,7 +37,6 @@ export const getStudents = async (params?: PaginationParams) => {
   }
 };
 
-// Mata Pelajaran
 export const getMataPelajaran = async (params?: PaginationParams) => {
   try {
     const response = await instance.get(endpoint.MATA_PELAJARAN, { params });
@@ -59,7 +55,6 @@ export const getMataPelajaranById = async (id: string) => {
   }
 };
 
-// Create functions
 export const createUser = async (data: UserSubmitData) => {
   try {
     const response = await instance.post(endpoint.USERS, data);
@@ -71,14 +66,12 @@ export const createUser = async (data: UserSubmitData) => {
       requestData: data
     });
 
-    // Check for validation errors in the response
     if (error.response?.data?.meta?.errors) {
       const errors = error.response.data.meta.errors;
       const messages = Object.values(errors).flat().join(", ");
       throw new Error(messages);
     }
 
-    // Handle specific HTTP status codes
     if (error.response?.status === 400) {
       const message = error.response?.data?.message || "Data yang dimasukkan tidak valid. Pastikan semua field required telah diisi dengan benar.";
       throw new Error(message);
@@ -87,7 +80,6 @@ export const createUser = async (data: UserSubmitData) => {
       throw new Error("Username atau email sudah digunakan. Silakan gunakan yang lain.");
     }
     
-    // If no specific error, throw the general error message
     throw new Error(error.response?.data?.message || "Gagal membuat akun. Silakan coba lagi.");
   }
 };
@@ -141,7 +133,6 @@ export const createMataPelajaran = async (data: any) => {
   }
 };
 
-// Update functions
 export const updateUser = async (id: string, data: UserSubmitData) => {
   try {
     const response = await instance.put(`${endpoint.USERS}/${id}`, data);
@@ -198,7 +189,6 @@ export const updateMataPelajaran = async (id: string, data: any) => {
   }
 };
 
-// Delete functions
 export const deleteUser = async (id: string) => {
   try {
     const response = await instance.delete(`${endpoint.USERS}/${id}`);
@@ -235,10 +225,8 @@ export const deleteMataPelajaran = async (id: string) => {
   }
 };
 
-// Enrollment
 export const getEnrolledStudents = async (mataPelajaranId: string) => {
   try {
-    // Forward to the mataPelajaran service implementation
     const { getEnrolledStudents } = await import('./mataPelajaran.service');
     return getEnrolledStudents(mataPelajaranId);
   } catch (error: any) {
@@ -248,7 +236,6 @@ export const getEnrolledStudents = async (mataPelajaranId: string) => {
 
 export const enrollStudent = async (mataPelajaranId: string, studentId: string) => {
   try {
-    // Forward to the mataPelajaran service implementation
     const { enrollStudent } = await import('./mataPelajaran.service');
     return enrollStudent(mataPelajaranId, studentId);
   } catch (error: any) {
@@ -258,7 +245,6 @@ export const enrollStudent = async (mataPelajaranId: string, studentId: string) 
 
 export const unenrollStudent = async (mataPelajaranId: string, studentId: string) => {
   try {
-    // Forward to the mataPelajaran service implementation
     const { unenrollStudent } = await import('./mataPelajaran.service');
     return unenrollStudent(mataPelajaranId, studentId);
   } catch (error: any) {

@@ -61,7 +61,6 @@ interface MataPelajaran {
   createdAt: string;
 }
 
-// Helper function to format dates safely
 const formatDate = (dateString: string): string => {
   if (!dateString) return 'Tanggal tidak tersedia';
   
@@ -102,7 +101,6 @@ const MataPelajaranDetail: React.FC<MataPelajaranDetailProps> = ({ id }) => {
           const enrolledIds = enrolledResponse.data.map((subject: any) => subject._id);
           setEnrolledMataPelajaranIds(enrolledIds);
           
-          // Check if current subject is in enrolled list
           if (id && enrolledIds.includes(id)) {
             setIsEnrolled(true);
           }
@@ -118,13 +116,10 @@ const MataPelajaranDetail: React.FC<MataPelajaranDetailProps> = ({ id }) => {
       try {
         setLoading(true);
         
-        // Fetch mata pelajaran details
         const mataPelajaranResponse = await getMataPelajaranById(id);
         setMataPelajaran(mataPelajaranResponse.data);
         
-        // Only fetch materials and assignments if enrolled
         if (isEnrolled) {
-          // Fetch materi pelajaran list
           const materiResponse = await getMateriByMataPelajaranId(id);
           setMateriList(materiResponse.data);
         }
@@ -141,13 +136,11 @@ const MataPelajaranDetail: React.FC<MataPelajaranDetailProps> = ({ id }) => {
     fetchData();
   }, [id, isEnrolled]);
   
-  // Define fetchAssignments before using it in the useEffect
   const fetchAssignments = useCallback(async () => {
     if (!id || materiList.length === 0) return;
     
     try {
       setLoadingAssignments(true);
-      // Get tasks for the first material (as an example)
       const firstMateriId = materiList[0]._id;
       const response = await getAssignmentsByMateriId(firstMateriId);
       setAssignments(response.data);
@@ -158,9 +151,7 @@ const MataPelajaranDetail: React.FC<MataPelajaranDetailProps> = ({ id }) => {
     }
   }, [id, materiList]);
   
-  // Separate effect to handle tab changes and load specific data
   useEffect(() => {
-    // Load tasks when switching to the tasks tab
     if (isEnrolled && activeTab === 'tugas' && materiList.length > 0 && assignments.length === 0) {
       fetchAssignments();
     }
@@ -176,7 +167,6 @@ const MataPelajaranDetail: React.FC<MataPelajaranDetailProps> = ({ id }) => {
     const tabKey = key.toString();
     setActiveTab(tabKey);
     
-    // Load tasks if switching to the tasks tab
     if (tabKey === 'tugas' && assignments.length === 0 && materiList.length > 0) {
       fetchAssignments();
     }
@@ -188,7 +178,6 @@ const MataPelajaranDetail: React.FC<MataPelajaranDetailProps> = ({ id }) => {
     try {
       setIsEnrolling(true);
       
-      // Use the self-enrollment endpoint that doesn't require a student ID
       await selfEnrollStudent(id);
       
       toast.success("Berhasil Mendaftar!", {
@@ -206,21 +195,16 @@ const MataPelajaranDetail: React.FC<MataPelajaranDetailProps> = ({ id }) => {
     }
   };
 
-  // Handle file downloads
   const handleDownloadFile = (file: string | { url: string; name: string }) => {
     const fileUrl = typeof file === 'string' ? file : file.url;
     
-    // Get the correct filename with extension
     let fileName: string;
     
     if (typeof file === 'string') {
-      // For compatibility with the old data format
       fileName = getFileNameFromUrl(file);
     } else if (file.name) {
-      // For the new format with stored filename
       fileName = file.name;
       
-      // Make sure the file has an extension (especially for Cloudinary docx files)
       if (fileUrl.includes('/documents/word/') && !fileName.toLowerCase().endsWith('.docx')) {
         fileName += '.docx';
       } else if (fileUrl.includes('/documents/pdf/') && !fileName.toLowerCase().endsWith('.pdf')) {
@@ -230,7 +214,6 @@ const MataPelajaranDetail: React.FC<MataPelajaranDetailProps> = ({ id }) => {
       } else if (fileUrl.includes('/documents/presentations/') && 
                 !fileName.toLowerCase().endsWith('.pptx') && 
                 !fileName.toLowerCase().endsWith('.ppt')) {
-        // Only add extension if the file doesn't already have a PowerPoint extension
         fileName += '.pptx';
       }
     } else {
@@ -295,7 +278,6 @@ const MataPelajaranDetail: React.FC<MataPelajaranDetailProps> = ({ id }) => {
                     <h4 className="text-sm font-medium mb-2">File Terlampir:</h4>
                     <div className="flex flex-wrap gap-2">
                       {materi.konten.files.map((file, fileIndex) => {
-                        // Handle both string URLs and object format with url and name properties
                         const fileUrl = typeof file === 'string' ? file : file.url;
                         const fileName = typeof file === 'string' ? getFileNameFromUrl(file) : file.name;
                         
@@ -353,7 +335,6 @@ const MataPelajaranDetail: React.FC<MataPelajaranDetailProps> = ({ id }) => {
     return (
       <div className="space-y-4 mt-4">
         {assignments.map((assignment) => {
-          // Calculate if the deadline has passed
           const deadlineDate = new Date(assignment.deadline);
           const isDeadlinePast = deadlineDate < new Date();
           

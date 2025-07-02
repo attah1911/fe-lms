@@ -63,11 +63,10 @@ export const authOptions: NextAuthOptions = {
   },
   callbacks: {
     async jwt({ token, user, trigger, session }) {
-      // Always ensure user role is preserved in the token
       if (user) {
         token.user = {
           ...user,
-          role: (user as UserExtended).role // Ensure role is explicitly set
+          role: (user as UserExtended).role
         } as UserExtended;
         token.accessToken = (user as UserExtended).accessToken;
       }
@@ -76,7 +75,7 @@ export const authOptions: NextAuthOptions = {
         token.user = { 
           ...token.user, 
           ...session.user,
-          role: token.user.role // Preserve the original role
+          role: token.user.role
         };
       }
 
@@ -86,40 +85,33 @@ export const authOptions: NextAuthOptions = {
       if (token) {
         session.user = {
           ...token.user,
-          role: token.user.role // Ensure role is passed to session
+          role: token.user.role
         };
         session.accessToken = token.accessToken;
       }
       return session;
     },
     async redirect({ url, baseUrl }) {
-      // First check if this is a relative URL
       if (url.startsWith('/')) {
-        // For sign-out, redirect to login page
         if (url.includes('/api/auth/signout') || url.includes('/logout')) {
           return `${baseUrl}/auth/login`;
         }
         
-        // For other relative paths, append to baseUrl
         return `${baseUrl}${url}`;
       }
       
-      // Handle absolute URLs
-      // Allow URLs from the same origin as baseUrl
       if (url.startsWith(baseUrl)) {
         return url;
       }
       
-      // Default fallback - return to homepage
       return baseUrl;
     },
   },
   session: {
     strategy: "jwt",
-    maxAge: 60 * 60 * 12, // 12 hours
+    maxAge: 60 * 60 * 12,
   },
   secret: environment.AUTH_SECRET,
-  // Add debug logs in development
   debug: process.env.NODE_ENV === 'development',
 };
 

@@ -40,10 +40,7 @@ const notificationService = {
       
       const response = await axios.get(`${endpoint.NOTIFICATION}/teacher?${query.toString()}`);
       
-      // Berdasarkan struktur respons API yang terlihat di log:
-      // {"meta":{"status":200,"message":"..."},"data":{"data":[...],"pagination":{...}}}
       if (response.data?.meta?.status === 200 && response.data?.data) {
-        // Struktur data yang benar berdasarkan log
         if (response.data.data.data && Array.isArray(response.data.data.data)) {
           return {
             data: response.data.data.data,
@@ -57,7 +54,6 @@ const notificationService = {
         }
       }
       
-      // Default empty response
       return {
         data: [],
         pagination: {
@@ -111,12 +107,10 @@ const notificationService = {
     }
   },
   
-  // Specifically for fetching unread notifications
   getUnreadTeacherNotifications: async () => {
     try {
       const response = await axios.get(`${endpoint.NOTIFICATION}/teacher?unread=true`);
       
-      // Struktur respons yang sama dengan getTeacherNotifications
       if (response.data?.meta?.status === 200 && response.data?.data) {
         if (response.data.data.data && Array.isArray(response.data.data.data)) {
           return response.data.data.data;

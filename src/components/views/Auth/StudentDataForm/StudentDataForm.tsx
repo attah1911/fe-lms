@@ -28,7 +28,6 @@ const StudentDataForm: React.FC<Props> = ({ email }) => {
     setError(null);
 
     try {
-      // Validate required fields
       if (!formData.nis.trim()) {
         throw new Error("NIS harus diisi");
       }
@@ -39,12 +38,10 @@ const StudentDataForm: React.FC<Props> = ({ email }) => {
         throw new Error("Nomor Telepon harus diisi");
       }
 
-      // Validate NIS format (numbers only)
       if (!/^\d+$/.test(formData.nis)) {
         throw new Error("NIS hanya boleh berisi angka");
       }
 
-      // Validate phone number format
       if (!/^[0-9+()-\s]+$/.test(formData.noTelp)) {
         throw new Error("Nomor Telepon hanya boleh berisi angka");
       }
@@ -55,15 +52,13 @@ const StudentDataForm: React.FC<Props> = ({ email }) => {
         description: "Silakan login menggunakan akun Anda",
       });
 
-      // Add delay before redirect to ensure toast is visible
       setTimeout(() => {
         router.push("/auth/login");
-      }, 2000); // 2 second delay
+      }, 2000);
       
     } catch (error: any) {
       console.error("Error submitting student data:", error);
       
-      // Handle specific error messages from backend
       const errorMessage = error.response?.data?.meta?.message 
         || error.message 
         || "Terjadi kesalahan saat menyimpan data";
@@ -83,7 +78,6 @@ const StudentDataForm: React.FC<Props> = ({ email }) => {
       ...prev,
       [name]: value,
     }));
-    // Clear error when user starts typing
     setError(null);
   };
 

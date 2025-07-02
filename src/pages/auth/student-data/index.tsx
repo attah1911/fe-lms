@@ -28,12 +28,8 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   }
 
   try {
-    // Verify this is a valid student email by attempting to get student data
-    // This will throw a 404 if the email is valid but data doesn't exist yet
-    // Or other errors if the email is invalid
     await authServices.getStudentData(email as string);
     
-    // If we get here, student data already exists, redirect to login
     return {
       redirect: {
         destination: "/auth/login",
@@ -41,7 +37,6 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
       },
     };
   } catch (error: any) {
-    // If it's a 404, this is what we want - the email is valid but needs data
     if (error.response?.status === 404) {
       return {
         props: {
@@ -50,7 +45,6 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
       };
     }
 
-    // For any other error, redirect to login
     return {
       redirect: {
         destination: "/auth/login",

@@ -33,12 +33,10 @@ const SidebarNav: React.FC<SidebarNavProps> = ({ items }) => {
   };
 
   const isActive = (href: string) => {
-    // For dashboard paths
     if (href.endsWith("/dashboard")) {
       const basePath = href.replace("/dashboard", "");
       return router.pathname === href || router.pathname === basePath;
     }
-    // For other paths
     return router.pathname === href;
   };
 

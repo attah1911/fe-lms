@@ -40,24 +40,20 @@ const CreateEditMataPelajaranModal = ({
     },
   });
 
-  // Watch for value changes
   const kategori = watch('kategori');
   const tingkatKelas = watch('tingkatKelas');
   const guruId = watch('guru');
   const [isAutoTitleEnabled, setIsAutoTitleEnabled] = useState(true);
 
-  // Find selected teacher name
   const getTeacherName = useCallback((id: string | TeacherData): string => {
     const teacherId = typeof id === 'object' ? id._id : id;
     const teacher = teachers.find(t => t._id === teacherId);
     return teacher ? teacher.fullName : '';
   }, [teachers]);
 
-  // Auto generate title when values change
   useEffect(() => {
     if (!isAutoTitleEnabled || mode === 'edit') return;
     
-    // Only generate title if all required fields are filled
     if (kategori && tingkatKelas && guruId) {
       const teacherName = getTeacherName(guruId);
       const titleTemplate = `${kategori} | ${tingkatKelas} | ${teacherName}`;
@@ -65,22 +61,18 @@ const CreateEditMataPelajaranModal = ({
     }
   }, [kategori, tingkatKelas, guruId, setValue, isAutoTitleEnabled, mode, teachers, getTeacherName]);
 
-  // Reset form when modal opens/closes or when initialData changes
   useEffect(() => {
     if (isOpen && initialData) {
-      // Set each field individually to ensure proper type handling
       setValue('judul', initialData.judul || '');
       setValue('kategori', initialData.kategori || '');
       setValue('deskripsi', initialData.deskripsi || '');
       setValue('tingkatKelas', initialData.tingkatKelas || '');
       
-      // Handle guru field which can be either string or object
       if (initialData.guru) {
         const guruId = typeof initialData.guru === 'object' ? initialData.guru._id : initialData.guru;
         setValue('guru', guruId);
       }
 
-      // Disable auto title in edit mode
       setIsAutoTitleEnabled(false);
     } else {
       reset({
@@ -90,7 +82,6 @@ const CreateEditMataPelajaranModal = ({
         guru: "",
         tingkatKelas: "",
       });
-      // Enable auto title in create mode
       setIsAutoTitleEnabled(mode === 'create');
     }
   }, [isOpen, initialData, setValue, reset, mode]);
@@ -110,13 +101,11 @@ const CreateEditMataPelajaranModal = ({
     handleSubmit(handleFormSubmit)();
   };
 
-  // Helper function to get selected keys for Select components
   const getSelectedKeys = (value: string | undefined) => {
     if (!value) return new Set<string>();
     return new Set([value]);
   };
 
-  // Helper function to get guru ID from value
   const getGuruId = (value: string | TeacherData | undefined) => {
     if (!value) return new Set<string>();
     const id = typeof value === 'object' ? value._id : value;
@@ -143,10 +132,8 @@ const CreateEditMataPelajaranModal = ({
     </>
   );
 
-  // Handle manual change of title
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (mode === 'create' && e.target.value !== '') {
-      // If user manually edits title, disable auto-generation
       setIsAutoTitleEnabled(false);
     }
   };

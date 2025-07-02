@@ -28,7 +28,6 @@ const DataMurid: React.FC = () => {
     current: 1,
   });
 
-  // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
   const [selectedStudent, setSelectedStudent] = useState<Student & { _id: string }>();
@@ -94,7 +93,6 @@ const DataMurid: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  // Delete modal states
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [selectedStudentForDelete, setSelectedStudentForDelete] = useState<Student & { _id: string }>();
   const [isDeleting, setIsDeleting] = useState(false);
@@ -165,7 +163,6 @@ const DataMurid: React.FC = () => {
         description="Halaman untuk mengelola data murid"
       />
 
-      {/* Search and Add New Button */}
       <div className="mb-6 flex justify-between items-center">
         <div className="relative w-64">
           <input
@@ -189,7 +186,6 @@ const DataMurid: React.FC = () => {
         </Button>
       </div>
 
-      {/* Notifications */}
       <div className="relative z-50">
         {error && (
           <NotificationAlert
@@ -207,14 +203,12 @@ const DataMurid: React.FC = () => {
         )}
       </div>
 
-      {/* Loading State */}
       {loading ? (
         <div className="flex justify-center items-center h-64">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
         </div>
       ) : (
         <>
-          {/* Table */}
           <div className="bg-white rounded-lg shadow overflow-hidden">
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
@@ -288,7 +282,6 @@ const DataMurid: React.FC = () => {
               </table>
             </div>
 
-            {/* Empty State */}
             {students.length === 0 && !loading && pagination.total === 0 && (
               <div className="text-center py-12">
                 <div className="mx-auto h-48 w-auto rounded-lg shadow-md mb-4 relative">
@@ -309,7 +302,6 @@ const DataMurid: React.FC = () => {
               </div>
             )}
 
-            {/* Pagination */}
             {students.length > 0 && (
               <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
                 <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
@@ -401,7 +393,6 @@ const DataMurid: React.FC = () => {
         </>
       )}
 
-      {/* Modals */}
       <CreateEditStudentModal
         isOpen={isModalOpen}
         onClose={() => {

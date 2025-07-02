@@ -47,7 +47,6 @@ const CreateEditStudentModal: React.FC<CreateEditStudentModalProps> = ({
         noTelp: ''
       });
     }
-    // Reset errors when modal opens/closes
     setErrors({});
   }, [initialData, isOpen]);
 
@@ -85,7 +84,6 @@ const CreateEditStudentModal: React.FC<CreateEditStudentModalProps> = ({
   const handleFieldChange = (field: keyof Student, value: string) => {
     setFormData({ ...formData, [field]: value });
     
-    // Validate field on change
     let error: string | undefined;
     switch (field) {
       case 'fullName':
@@ -122,7 +120,6 @@ const CreateEditStudentModal: React.FC<CreateEditStudentModalProps> = ({
 
     setErrors(newErrors);
 
-    // Check if there are any errors
     return !Object.values(newErrors).some(error => error !== undefined);
   };
 

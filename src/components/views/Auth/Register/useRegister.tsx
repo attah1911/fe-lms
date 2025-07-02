@@ -10,10 +10,8 @@ import authServices from "../../../../services/auth.service";
 import { Control, FieldErrors } from "react-hook-form";
 import { AxiosError } from "axios";
 
-// Custom validation for fullName (letters and spaces only, max 50 chars)
 const fullNameRegex = /^[A-Za-z\s]+$/;
 
-// Custom validation for username (must contain at least three letters, can include numbers, max 15 chars)
 const usernameRegex = /^(?=(?:.*[A-Za-z]){3})[A-Za-z0-9]+$/;
 
 const registerSchema = yup.object().shape({
@@ -92,10 +90,9 @@ export const useRegister = (): UseRegisterReturn => {
     clearErrors,
   } = useForm<IRegisterForm>({
     resolver: yupResolver(registerSchema),
-    mode: "onChange", // Enable real-time validation
+    mode: "onChange",
   });
 
-  // Handle password visibility toggle
   const handleVisiblePassword = (field: "password" | "confirmPassword") => {
     setVisiblePassword((prev) => ({
       ...prev,
@@ -105,18 +102,16 @@ export const useRegister = (): UseRegisterReturn => {
 
   const { mutate: mutateRegister, isPending: isPendingRegister } = useMutation({
     mutationFn: async (formData: IRegisterForm) => {
-      // Clear any existing errors
       clearErrors();
 
       try {
-        // Transform form data to API request data
         const registerData = {
           fullName: formData.fullName,
           username: formData.username,
           email: formData.email,
           password: formData.password,
           confirmPassword: formData.confirmPassword,
-          role: 'murid', // Default role for registration
+          role: 'murid',
         };
 
         const response = await authServices.register(registerData);
@@ -125,7 +120,6 @@ export const useRegister = (): UseRegisterReturn => {
         if (error instanceof AxiosError && error.response) {
           const errorMessage = error.response.data?.meta?.message;
           
-          // Check for specific error messages
           if (errorMessage?.toLowerCase().includes('username')) {
             setError('username', {
               type: 'manual',
@@ -142,16 +136,13 @@ export const useRegister = (): UseRegisterReturn => {
             throw new Error('Email sudah digunakan');
           }
 
-          // For other validation errors
           throw new Error(errorMessage || 'Registrasi gagal');
         }
         
-        // For network or other errors
         throw new Error('Registrasi gagal. Silakan coba lagi.');
       }
     },
     onSuccess: (result) => {
-      // Redirect to success page with email
       router.push({
         pathname: '/auth/register/success',
         query: { email: result.email }

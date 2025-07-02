@@ -53,11 +53,9 @@ const Dashboard: React.FC = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        // Fetch dashboard stats
         const statsData = await statsService.getDashboardStats();
         setStats(statsData);
         
-        // Fetch user profile data
         const profileResponse = await authServices.getProfile();
         setProfileData(profileResponse.data.data);
         
@@ -145,7 +143,6 @@ const Dashboard: React.FC = () => {
   };
 
   const renderSubjects = () => {
-    // If searching, show search results
     if (searchResults !== null) {
       if (searchResults.length === 0) {
         return (
@@ -176,7 +173,6 @@ const Dashboard: React.FC = () => {
       );
     }
 
-    // Otherwise, show recent subjects from stats
     if (!stats?.recentSubjects || stats.recentSubjects.length === 0) {
       return (
         <Card>
@@ -206,7 +202,6 @@ const Dashboard: React.FC = () => {
     );
   };
 
-  // Render pagination
   const renderPagination = () => {
     if (!searchResults || pagination.total === 0) return null;
 
@@ -310,7 +305,6 @@ const Dashboard: React.FC = () => {
         description="Selamat datang di halaman Dashboard Admin" 
       />
 
-      {/* Notifications */}
       {error && (
         <div className="mb-6">
           <NotificationAlert
@@ -321,7 +315,6 @@ const Dashboard: React.FC = () => {
         </div>
       )}
 
-      {/* User Profile Card */}
       <div className="mb-6">
         <UserProfileCard 
           user={profileData ? {
@@ -331,7 +324,6 @@ const Dashboard: React.FC = () => {
         />
       </div>
 
-      {/* Statistics Cards */}
       {loading ? (
         <div className="flex justify-center my-12">
           <Spinner size="lg" color="primary" />
@@ -359,7 +351,6 @@ const Dashboard: React.FC = () => {
             />
           </div>
 
-          {/* Subject Search */}
           <Card className="mb-6">
             <CardBody>
               <h3 className="text-lg font-semibold mb-3">Cari Mata Pelajaran</h3>
@@ -377,7 +368,6 @@ const Dashboard: React.FC = () => {
             </CardBody>
           </Card>
 
-          {/* Subjects */}
           <div className="mb-6">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">
@@ -399,7 +389,6 @@ const Dashboard: React.FC = () => {
               renderSubjects()
             )}
             
-            {/* Render pagination */}
             {renderPagination()}
           </div>
         </>

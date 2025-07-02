@@ -42,7 +42,6 @@ const CreateMateriPelajaranModal = ({
     },
   });
 
-  // Reset form when modal opens/closes
   useEffect(() => {
     if (!isOpen) {
       reset({
@@ -57,7 +56,6 @@ const CreateMateriPelajaranModal = ({
   }, [isOpen, reset]);
 
   const handleFormSubmit = async (data: Materi) => {
-    // Include the uploaded files in the form data
     const dataWithFiles = {
       ...data,
       konten: {

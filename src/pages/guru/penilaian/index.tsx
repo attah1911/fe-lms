@@ -90,15 +90,12 @@ const TeacherGradingPage: React.FC = () => {
     direction: "descending",
   });
 
-  // Grading modal state
   const [isGradingModalOpen, setIsGradingModalOpen] = useState(false);
   const [currentSubmission, setCurrentSubmission] = useState<SubmissionWithUserData | null>(null);
   const [feedbackText, setFeedbackText] = useState("");
   const [scoreValue, setScoreValue] = useState<number | "">(""); 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Fetch data
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
@@ -124,20 +121,16 @@ const TeacherGradingPage: React.FC = () => {
       let allAssignments: ExtendedAssignment[] = [];
       const assignmentsByMp: {[key: string]: ExtendedAssignment[]} = {};
       
-      // Loop through each mata pelajaran
       for (const mataPelajaran of mataPelajaranData) {
         assignmentsByMp[mataPelajaran._id as string] = [];
         
-        // Get all materials for this mata pelajaran
         const materiResponse = await getMateriByMataPelajaranId(mataPelajaran._id as string);
         
         if (materiResponse && materiResponse.data && materiResponse.data.length > 0) {
           for (const materi of materiResponse.data) {
-            // Get assignments for each materi
             const assignmentResponse = await getAssignmentsByMateriId(materi._id);
             
             if (assignmentResponse && assignmentResponse.data) {
-              // Add context information to assignments
               const assignmentsWithContext = assignmentResponse.data.map((assignment: Assignment) => ({
                 ...assignment,
                 mataPelajaranTitle: mataPelajaran.judul,
@@ -150,7 +143,6 @@ const TeacherGradingPage: React.FC = () => {
                 ...assignmentsWithContext
               ];
               
-              // Process submissions from each assignment
               for (const assignment of assignmentResponse.data) {
                 if (assignment.submissions && assignment.submissions.length > 0) {
                   const submissionsWithContext = assignment.submissions.map((submission: any) => ({
@@ -178,14 +170,12 @@ const TeacherGradingPage: React.FC = () => {
         }
       }
       
-      // Sort submissions by submitted date (newest first)
       allSubmissions.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
       
       setAssignments(allAssignments);
       setAssignmentsByMataPelajaran(assignmentsByMp);
       setSubmissions(allSubmissions);
 
-      // If there's an assignmentId in the query, set the selected assignment and related mata pelajaran
       if (queryAssignmentId) {
         const targetAssignment = allAssignments.find(a => a._id === queryAssignmentId);
         if (targetAssignment) {
@@ -202,12 +192,10 @@ const TeacherGradingPage: React.FC = () => {
     }
   };
   
-  // Initial data fetch
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  // Open grading modal
   const handleOpenGradingModal = (submission: SubmissionWithUserData) => {
     setCurrentSubmission(submission);
     setFeedbackText(submission.feedback || "");
@@ -215,7 +203,6 @@ const TeacherGradingPage: React.FC = () => {
     setIsGradingModalOpen(true);
   };
 
-  // Close grading modal and reset values
   const handleCloseGradingModal = () => {
     setIsGradingModalOpen(false);
     setCurrentSubmission(null);
@@ -223,28 +210,23 @@ const TeacherGradingPage: React.FC = () => {
     setScoreValue("");
   };
 
-  // Handle downloading files
   const handleDownloadFile = (url: string, fileName: string) => {
     downloadFile(url, fileName);
   };
 
-  // Submit assignment grading
   const handleSubmitGrading = async () => {
     if (!currentSubmission) return;
 
-    // Check if submission status is REVIEWED (accepted) - only accepted submissions can be graded
     if (currentSubmission.status !== SubmissionStatus.REVIEWED) {
       toast.error("Hanya tugas yang sudah diterima yang dapat diberi nilai");
       return;
     }
 
-    // Validate inputs
     if (scoreValue === "" || feedbackText.trim() === "") {
       toast.error("Mohon isi nilai dan umpan balik");
       return;
     }
     
-    // Validate score range
     const score = Number(scoreValue);
     if (isNaN(score) || score < 0 || score > 100) {
       toast.error("Nilai harus berupa angka antara 0-100");
@@ -254,7 +236,6 @@ const TeacherGradingPage: React.FC = () => {
     try {
       setIsSubmitting(true);
 
-      // Call API to update submission status with feedback
       await updateSubmissionStatus(
         currentSubmission.assignmentId,
         currentSubmission._id,
@@ -262,7 +243,6 @@ const TeacherGradingPage: React.FC = () => {
         feedbackText
       );
       
-      // Update score using the new API endpoint
       await updateSubmissionScore(
         currentSubmission.assignmentId,
         currentSubmission._id,
@@ -271,7 +251,6 @@ const TeacherGradingPage: React.FC = () => {
       
       toast.success("Penilaian berhasil disimpan");
       
-      // Update submission in local state
       const updatedSubmissions = submissions.map(sub => {
         if (sub._id === currentSubmission._id) {
           return {
@@ -286,10 +265,8 @@ const TeacherGradingPage: React.FC = () => {
       
       setSubmissions(updatedSubmissions);
       
-      // Fetch data again to update progress bars across the app
       fetchData();
       
-      // Close the modal
       handleCloseGradingModal();
     } catch (error: any) {
       console.error("Error updating submission:", error);
@@ -299,7 +276,6 @@ const TeacherGradingPage: React.FC = () => {
     }
   };
   
-  // Format date to locale string
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('id-ID', {
@@ -311,36 +287,29 @@ const TeacherGradingPage: React.FC = () => {
     });
   };
 
-  // Update assignments dropdown when mata pelajaran selection changes
   useEffect(() => {
     if (selectedMataPelajaran !== "all") {
-      // If selection has changed, reset assignment selection to "all"
       if (selectedAssignment !== "all") {
         setSelectedAssignment("all");
       }
     }
   }, [selectedMataPelajaran, selectedAssignment]);
 
-  // Filter and sort submissions
   const filteredSubmissions = submissions.filter(submission => {
-    // Filter by mata pelajaran if selected
     if (selectedMataPelajaran !== "all" && submission.mataPelajaranTitle !== mataPelajaranList.find(mp => mp._id === selectedMataPelajaran)?.judul) {
       return false;
     }
     
-    // Filter by assignment if selected
     if (selectedAssignment !== "all" && submission.assignmentId !== selectedAssignment) {
       return false;
     }
     
-    // Filter by search term (check student name and assignment title)
     if (searchTerm && 
       !submission.studentName.toLowerCase().includes(searchTerm.toLowerCase()) && 
       !submission.assignmentTitle.toLowerCase().includes(searchTerm.toLowerCase())) {
       return false;
     }
     
-    // Only show submissions with status SUBMITTED or REVIEWED (exclude REJECTED)
     if (submission.status === SubmissionStatus.REJECTED) {
       return false;
     }
@@ -348,7 +317,6 @@ const TeacherGradingPage: React.FC = () => {
     return true;
   });
 
-  // Sort submissions
   const sortedSubmissions = [...filteredSubmissions].sort((a, b) => {
     const first = a[sortDescriptor.column as keyof SubmissionWithUserData];
     const second = b[sortDescriptor.column as keyof SubmissionWithUserData];
@@ -362,7 +330,6 @@ const TeacherGradingPage: React.FC = () => {
     return sortDescriptor.direction === "descending" ? -cmp : cmp;
   });
 
-  // Table columns
   const columns = [
     { 
       key: "assignmentTitle", 
@@ -416,7 +383,6 @@ const TeacherGradingPage: React.FC = () => {
       render: (item: SubmissionWithUserData) => (
         <div>
           {item.status === SubmissionStatus.REVIEWED ? (
-            // For REVIEWED status (accepted): Allow viewing/editing grades
             <Button 
               color="primary" 
               size="sm" 
@@ -426,7 +392,6 @@ const TeacherGradingPage: React.FC = () => {
               {item.score !== undefined ? "Lihat Nilai" : "Beri Nilai"}
             </Button>
           ) : item.status === SubmissionStatus.SUBMITTED ? (
-            // For SUBMITTED status: Show message that it needs acceptance first
             <div>
               <Button 
                 color="warning" 
@@ -439,7 +404,6 @@ const TeacherGradingPage: React.FC = () => {
               <p className="text-xs text-gray-500">Terima di halaman detail tugas</p>
             </div>
           ) : (
-            // For REJECTED status: Cannot be graded
             <Button 
               color="danger" 
               size="sm" 
@@ -579,7 +543,6 @@ const TeacherGradingPage: React.FC = () => {
           </Card>
         )}
         
-        {/* Grading Modal */}
         <Modal
           isOpen={isGradingModalOpen}
           onOpenChange={(isOpen) => {

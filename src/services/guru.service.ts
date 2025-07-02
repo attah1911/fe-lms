@@ -10,7 +10,6 @@ interface GetGuruMataPelajaranParams {
   search?: string;
 }
 
-// Get mata pelajaran for guru
 export const getGuruMataPelajaran = async ({
   page = 1,
   limit = 10,
@@ -27,7 +26,6 @@ export const getGuruMataPelajaran = async ({
   }
 };
 
-// Create mata pelajaran for guru
 export const createGuruMataPelajaran = async (data: MataPelajaran) => {
   try {
     const response = await instance.post(endpoint.MATA_PELAJARAN, data);
@@ -42,7 +40,6 @@ export const createGuruMataPelajaran = async (data: MataPelajaran) => {
   }
 };
 
-// Update mata pelajaran for guru
 export const updateGuruMataPelajaran = async (id: string, data: MataPelajaran) => {
   try {
     const response = await instance.put(`${endpoint.MATA_PELAJARAN}/${id}`, data);
@@ -57,7 +54,6 @@ export const updateGuruMataPelajaran = async (id: string, data: MataPelajaran) =
   }
 };
 
-// Delete mata pelajaran for guru
 export const deleteGuruMataPelajaran = async (id: string) => {
   try {
     const response = await instance.delete(`${endpoint.MATA_PELAJARAN}/${id}`);
@@ -67,14 +63,11 @@ export const deleteGuruMataPelajaran = async (id: string) => {
   }
 };
 
-// Get teacher by current user ID (for pre-populating the form)
 export const getCurrentTeacher = async (): Promise<{ _id: string; fullName: string }> => {
   try {
-    // Get the first mata pelajaran for the current user to extract teacher info
     const response = await getGuruMataPelajaran({ page: 1, limit: 1 });
     
     if (response.data && response.data.length > 0) {
-      // Extract teacher info from the first mata pelajaran
       const firstSubject = response.data[0];
       if (firstSubject.guru && typeof firstSubject.guru === 'object') {
         return {
@@ -84,7 +77,6 @@ export const getCurrentTeacher = async (): Promise<{ _id: string; fullName: stri
       }
     }
     
-    // If we can't get data from mata pelajaran, throw an error
     throw new Error("No mata pelajaran found for current teacher");
   } catch (error: any) {
     console.error("Error in getCurrentTeacher:", error);
@@ -99,7 +91,7 @@ export const getCurrentTeacher = async (): Promise<{ _id: string; fullName: stri
 export const getTeacherProfile = async () => {
   try {
     const config: CustomRequestConfig = {
-      noRedirect: true // Add flag to prevent automatic redirect on error
+      noRedirect: true
     };
     const response = await instance.get(`${endpoint.TEACHERS}/me`, config);
     return response.data;
@@ -122,7 +114,6 @@ export const updateTeacherProfile = async (data: TeacherUpdateData) => {
   }
 };
 
-// Create default export for the service
 const guruService = {
   getGuruMataPelajaran,
   createGuruMataPelajaran,

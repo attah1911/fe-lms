@@ -164,7 +164,6 @@ export const updateStudentProfile = async (data: StudentUpdateData) => {
   }
 };
 
-// Export student service as default to support both named and default imports
 const studentServices = {
   getEnrolledMataPelajaran,
   getNotifications,

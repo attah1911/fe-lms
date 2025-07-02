@@ -44,12 +44,10 @@ function useTableData<T>({
     current: initialPage,
   });
 
-  // Use refs to store the latest values without causing re-renders
   const fetchDataRef = useRef(fetchData);
   const searchTermRef = useRef(searchTerm);
   const paginationRef = useRef(pagination);
 
-  // Update refs when values change
   useEffect(() => {
     fetchDataRef.current = fetchData;
     searchTermRef.current = searchTerm;
@@ -63,7 +61,6 @@ function useTableData<T>({
       
       const response = await fetchDataRef.current(page, search);
       
-      // Validate response structure
       if (!response || typeof response !== 'object') {
         console.error('Invalid response format:', response);
         setError('Invalid data format received from server');
@@ -76,15 +73,12 @@ function useTableData<T>({
         return;
       }
       
-      // Ensure data is an array
       const responseData = Array.isArray(response.data) ? response.data : [];
       
       if (responseData.length === 0 && page > 1) {
-        // If no data on current page, fetch previous page
         const prevPage = page - 1;
         const prevResponse = await fetchDataRef.current(prevPage, search);
         
-        // Validate previous response
         if (!prevResponse || !Array.isArray(prevResponse.data)) {
           setData([]);
           setPagination({
@@ -116,7 +110,7 @@ function useTableData<T>({
     } finally {
       setLoading(false);
     }
-  }, []); // Empty dependency array since we're using refs
+  }, []);
 
   const handleSearch = useCallback((value: string) => {
     setSearchTerm(value);
@@ -132,7 +126,6 @@ function useTableData<T>({
     return loadData(paginationRef.current.current, searchTermRef.current);
   }, [loadData]);
 
-  // Initial load - only run once
   useEffect(() => {
     loadData(initialPage, initialSearch);
   }, [initialPage, initialSearch, loadData]);

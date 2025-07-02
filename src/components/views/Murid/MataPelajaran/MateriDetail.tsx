@@ -40,7 +40,6 @@ interface MataPelajaran {
   judul: string;
 }
 
-// Helper function untuk memformat tanggal dengan aman
 const formatDate = (dateString: string): string => {
   if (!dateString) return 'Tanggal tidak tersedia';
   
@@ -69,7 +68,6 @@ const MateriDetail: React.FC<MateriDetailProps> = ({ mataPelajaranId, materiId }
       try {
         setLoading(true);
         
-        // Fetch the mata pelajaran info
         const mataPelajaranResponse = await getMataPelajaranById(mataPelajaranId);
         if (mataPelajaranResponse && mataPelajaranResponse.data) {
           setMataPelajaran({
@@ -78,7 +76,6 @@ const MateriDetail: React.FC<MateriDetailProps> = ({ mataPelajaranId, materiId }
           });
         }
         
-        // Fetch the materi detail
         const response = await getMateriPelajaranById(materiId);
         if (response && response.data) {
           setMateri(response.data);
@@ -100,7 +97,6 @@ const MateriDetail: React.FC<MateriDetailProps> = ({ mataPelajaranId, materiId }
     router.push(`/murid/matapelajaran/${mataPelajaranId}`);
   };
 
-  // Helper function to determine icon for file types
   const getFileIcon = (mimetype: string) => {
     if (mimetype.includes('image')) return <FiFileText />;
     if (mimetype.includes('pdf')) return <FiFileText />;
@@ -109,21 +105,16 @@ const MateriDetail: React.FC<MateriDetailProps> = ({ mataPelajaranId, materiId }
     return <FiFileText />;
   };
 
-  // Handle file downloads
   const handleDownloadFile = (file: string | { url: string; name: string }) => {
     const fileUrl = typeof file === 'string' ? file : file.url;
     
-    // Get the correct filename with extension
     let fileName: string;
     
     if (typeof file === 'string') {
-      // For compatibility with the old data format
       fileName = getFileNameFromUrl(file);
     } else if (file.name) {
-      // For the new format with stored filename
       fileName = file.name;
       
-      // Make sure the file has an extension (especially for Cloudinary docx files)
       if (fileUrl.includes('/documents/word/') && !fileName.toLowerCase().endsWith('.docx')) {
         fileName += '.docx';
       } else if (fileUrl.includes('/documents/pdf/') && !fileName.toLowerCase().endsWith('.pdf')) {
@@ -133,14 +124,12 @@ const MateriDetail: React.FC<MateriDetailProps> = ({ mataPelajaranId, materiId }
       } else if (fileUrl.includes('/documents/presentations/') && 
                 !fileName.toLowerCase().endsWith('.pptx') && 
                 !fileName.toLowerCase().endsWith('.ppt')) {
-        // Only add extension if the file doesn't already have a PowerPoint extension
         fileName += '.pptx';
       }
     } else {
       fileName = 'file';
     }
     
-    // Use the utility function to properly download with correct MIME type
     downloadFile(fileUrl, fileName);
   };
 

@@ -7,12 +7,10 @@ export const SessionCheck = () => {
   const { data: session, status } = useSession();
   const router = useRouter();
   
-  // Memoize the current path to avoid unnecessary checks
   const currentPath = router.pathname;
   const isAuthPage = currentPath.startsWith("/auth/") || currentPath === "/";
 
   useEffect(() => {
-    // Skip session check for auth pages
     if (isAuthPage) return;
 
     let mounted = true;
@@ -20,7 +18,6 @@ export const SessionCheck = () => {
     const handleAuthError = async (errorType?: string) => {
       if (!mounted) return;
       
-      // Only sign out if currently authenticated
       if (status === "authenticated") {
         try {
           await signOut({ redirect: false });
@@ -29,7 +26,6 @@ export const SessionCheck = () => {
         }
       }
 
-      // Redirect to login with appropriate error
       const callbackUrl = encodeURIComponent(router.asPath);
       const errorParam = errorType ? `&error=${errorType}` : '';
       router.push(`/auth/login?callbackUrl=${callbackUrl}${errorParam}`);
@@ -37,7 +33,6 @@ export const SessionCheck = () => {
 
     const checkSession = async () => {
       try {
-        // Check session status
         if (status === "unauthenticated") {
           await handleAuthError();
         } else if (status === "authenticated") {
@@ -62,7 +57,6 @@ export const SessionCheck = () => {
     };
   }, [status, session, isAuthPage, router]);
 
-  // Handle unauthorized API responses
   useEffect(() => {
     if (isAuthPage) return;
 
