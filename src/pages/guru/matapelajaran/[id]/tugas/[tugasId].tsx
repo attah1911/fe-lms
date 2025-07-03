@@ -990,7 +990,7 @@ const AssignmentDetail: React.FC = () => {
           </div>
         ) : (
           <>
-            <div className="mb-4 relative z-40 pointer-events-auto">
+            <div className="mb-4 relative z-40 pointer-events-auto mt-16">
               <Button
                 size="md"
                 variant="solid"

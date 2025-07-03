@@ -158,7 +158,7 @@ const MateriDetail: React.FC<MateriDetailProps> = ({ mataPelajaranId, materiId }
         />
       )}
 
-      <div className="mb-3 relative z-40 pointer-events-auto">
+      <div className="mb-3 relative z-40 pointer-events-auto mt-16">
         <Button 
           color="default" 
           variant="solid" 

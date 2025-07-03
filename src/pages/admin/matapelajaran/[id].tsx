@@ -445,7 +445,7 @@ const MataPelajaranDetail: React.FC = () => {
 
   return (
     <DashboardLayout>
-      <PageContainer className="-mt-12 lg:-mt-20">
+      <PageContainer className="-mt-20">
         {error && (
           <div className="mb-4 relative z-10">
             <NotificationAlert
@@ -462,7 +462,7 @@ const MataPelajaranDetail: React.FC = () => {
           </div>
         ) : (
           <>
-            <div className="mb-4 relative z-40 pointer-events-auto">
+            <div className="mb-4 relative z-40 pointer-events-auto mt-16">
               <Button
                 size="md"
                 variant="solid"

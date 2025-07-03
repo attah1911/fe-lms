@@ -103,10 +103,13 @@ const MataPelajaranDetail: React.FC<MataPelajaranDetailProps> = ({ id }) => {
           
           if (id && enrolledIds.includes(id)) {
             setIsEnrolled(true);
+            return true;
           }
         }
+        return false;
       } catch (err: any) {
         console.error("Error checking enrollment status:", err);
+        return false;
       }
     };
 
@@ -116,12 +119,20 @@ const MataPelajaranDetail: React.FC<MataPelajaranDetailProps> = ({ id }) => {
       try {
         setLoading(true);
         
+        // First check enrollment status
+        const enrolled = await fetchEnrollmentStatus();
+        
         const mataPelajaranResponse = await getMataPelajaranById(id);
         setMataPelajaran(mataPelajaranResponse.data);
         
-        if (isEnrolled) {
-          const materiResponse = await getMateriByMataPelajaranId(id);
-          setMateriList(materiResponse.data);
+        // Only fetch materi if enrolled
+        if (enrolled) {
+          try {
+            const materiResponse = await getMateriByMataPelajaranId(id);
+            setMateriList(materiResponse.data);
+          } catch (materiErr) {
+            console.error("Error fetching materi:", materiErr);
+          }
         }
         
         setError(null);
@@ -134,7 +145,7 @@ const MataPelajaranDetail: React.FC<MataPelajaranDetailProps> = ({ id }) => {
     };
     
     fetchData();
-  }, [id, isEnrolled]);
+  }, [id]);
   
   const fetchAssignments = useCallback(async () => {
     if (!id || materiList.length === 0) return;
@@ -185,6 +196,15 @@ const MataPelajaranDetail: React.FC<MataPelajaranDetailProps> = ({ id }) => {
       });
       
       setIsEnrolled(true);
+      
+      // Reload materi after enrollment
+      try {
+        const materiResponse = await getMateriByMataPelajaranId(id);
+        setMateriList(materiResponse.data);
+      } catch (err) {
+        console.error("Error fetching materi after enrollment:", err);
+      }
+      
     } catch (err: any) {
       console.error("Error enrolling in subject:", err);
       toast.error("Gagal Mendaftar", {
@@ -495,7 +515,7 @@ const MataPelajaranDetail: React.FC<MataPelajaranDetailProps> = ({ id }) => {
         </div>
       ) : (
         <>
-          <div className="mb-3 relative z-40 pointer-events-auto">
+          <div className="mb-3 relative z-40 pointer-events-auto mt-16">
             <Button
               size="md"
               variant="solid"
