@@ -259,15 +259,17 @@ const MataPelajaran: React.FC = () => {
     <PageContainer>
       <PageHeader
         title="Mata Pelajaran"
-        description="Daftar mata pelajaran yang Anda ajar"
+        description="Halaman untuk mengelola mata pelajaran yang Anda ajar"
       />
 
       <div className="mb-6 flex justify-between items-center">
-        <SearchInput
-          value={searchTerm}
-          onChange={handleSearch}
-          placeholder="Cari mata pelajaran..."
-        />
+        <div className="relative w-64">
+          <SearchInput 
+            value={searchTerm} 
+            onChange={handleSearch}
+            placeholder="Cari mata pelajaran..." 
+          />
+        </div>
         <Button 
           color="primary"
           onPress={handleCreate}
@@ -295,43 +297,53 @@ const MataPelajaran: React.FC = () => {
         )}
       </div>
 
-      <DataTable
-        columns={columns}
-        data={mataPelajarans || []}
-        pagination={pagination}
-        onPageChange={handlePageChange}
-        isLoading={loading}
-        showActions={false}
+      {loading ? (
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+        </div>
+      ) : (
+        <>
+          {mataPelajarans.length === 0 ? (
+            <div className="bg-white rounded-lg shadow p-6 text-center">
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Belum ada mata pelajaran</h3>
+              <p className="text-gray-500 mb-4">Anda belum memiliki mata pelajaran yang terdaftar. Silakan tambahkan mata pelajaran baru.</p>
+              <Button 
+                color="primary"
+                onPress={handleCreate}
+                className="px-4 py-2 rounded-lg"
+              >
+                <FiPlus className="mr-2" />
+                Tambah Mata Pelajaran
+              </Button>
+            </div>
+          ) : (
+            <DataTable
+              columns={columns}
+              data={mataPelajarans}
+              pagination={pagination}
+              onPageChange={handlePageChange}
+            />
+          )}
+        </>
+      )}
+
+      <CreateEditMataPelajaranModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSubmit={handleModalSubmit}
+        initialData={selectedMataPelajaran}
+        mode={modalMode}
+        isSubmitting={isSubmitting}
+        teacherId={teacherId}
+        teacherName={teacherName}
       />
 
-      {teacherId && (
-        <CreateEditMataPelajaranModal
-          isOpen={isModalOpen}
-          onClose={() => {
-            setIsModalOpen(false);
-            setError(null);
-          }}
-          onSubmit={handleModalSubmit}
-          initialData={selectedMataPelajaran ? {
-            ...selectedMataPelajaran,
-            guru: typeof selectedMataPelajaran.guru === 'object' ? selectedMataPelajaran.guru._id : selectedMataPelajaran.guru
-          } : undefined}
-          mode={modalMode}
-          isSubmitting={isSubmitting}
-          teacherId={teacherId}
-          teacherName={teacherName}
-        />
-      )}
-      
       <DeleteConfirmationModal
         isOpen={deleteModalOpen}
-        onClose={() => {
-          setDeleteModalOpen(false);
-          setSelectedForDelete(undefined);
-        }}
+        onClose={() => setDeleteModalOpen(false)}
         onConfirm={handleDeleteConfirm}
-        isLoading={isDeleting}
         mataPelajaranTitle={selectedForDelete?.judul || ''}
+        isLoading={isDeleting}
       />
     </PageContainer>
   );

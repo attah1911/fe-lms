@@ -22,7 +22,7 @@ interface Assignment {
     kategori: string;
   };
   deadline: string;
-  status: 'belum_dikerjakan' | 'sedang_dikerjakan' | 'selesai';
+  status: 'belum_dikerjakan' | 'selesai';
   nilai?: number;
   createdAt: string;
 }
@@ -52,13 +52,29 @@ const Tugas: React.FC = () => {
         setLoading(true);
         
         const response = await getStudentAssignments();
-        setAssignments(response.data || []);
+        
+        const sortedAssignments = [...(response.data || [])].sort((a, b) => {
+          const aDeadlinePassed = isDeadlinePassed(a.deadline);
+          const bDeadlinePassed = isDeadlinePassed(b.deadline);
+          const aIsLate = aDeadlinePassed && a.status !== 'selesai';
+          const bIsLate = bDeadlinePassed && b.status !== 'selesai';
+          
+          if (aIsLate && !bIsLate) return 1;
+          if (!aIsLate && bIsLate) return -1;
+          
+          if (aDeadlinePassed && !bDeadlinePassed) return 1;
+          if (!aDeadlinePassed && bDeadlinePassed) return -1;
+          
+          return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
+        });
+        
+        setAssignments(sortedAssignments);
         
         setPagination({
-          total: response.meta?.pagination?.total || 0,
-          totalPages: response.meta?.pagination?.totalPages || 0,
+          total: response.meta?.pagination?.total || sortedAssignments.length,
+          totalPages: response.meta?.pagination?.totalPages || Math.ceil(sortedAssignments.length / 6),
           current: response.meta?.pagination?.current || 1,
-          size: response.meta?.pagination?.size || 10
+          size: response.meta?.pagination?.size || 6
         });
         
         setError(null);
@@ -134,7 +150,17 @@ const Tugas: React.FC = () => {
     }
     
     if (statusFilter) {
-      filtered = filtered.filter(assignment => assignment.status === statusFilter);
+      if (statusFilter === 'belum_dikerjakan') {
+        filtered = filtered.filter(assignment => 
+          assignment.status === 'belum_dikerjakan' && !isDeadlinePassed(assignment.deadline)
+        );
+      } else if (statusFilter === 'terlambat') {
+        filtered = filtered.filter(assignment => 
+          isDeadlinePassed(assignment.deadline) && assignment.status !== 'selesai'
+        );
+      } else {
+        filtered = filtered.filter(assignment => assignment.status === statusFilter);
+      }
     }
     
     if (sortBy) {
@@ -147,18 +173,29 @@ const Tugas: React.FC = () => {
           break;
         case 'status':
           filtered.sort((a, b) => {
-            const statusOrder = {
+            const statusOrder: Record<Assignment['status'], number> = {
               'belum_dikerjakan': 0,
-              'sedang_dikerjakan': 1,
-              'selesai': 2
+              'selesai': 1
             };
-            return (statusOrder[a.status] || 0) - (statusOrder[b.status] || 0);
+            return statusOrder[a.status] - statusOrder[b.status];
           });
           break;
-        case 'matapelajaran':
-          filtered.sort((a, b) => a.mataPelajaran.judul.localeCompare(b.mataPelajaran.judul));
-          break;
       }
+    } else {
+      filtered.sort((a, b) => {
+        const aDeadlinePassed = isDeadlinePassed(a.deadline);
+        const bDeadlinePassed = isDeadlinePassed(b.deadline);
+        const aIsLate = aDeadlinePassed && a.status !== 'selesai';
+        const bIsLate = bDeadlinePassed && b.status !== 'selesai';
+        
+        if (aIsLate && !bIsLate) return 1;
+        if (!aIsLate && bIsLate) return -1;
+        
+        if (aDeadlinePassed && !bDeadlinePassed) return 1;
+        if (!aDeadlinePassed && bDeadlinePassed) return -1;
+        
+        return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
+      });
     }
     
     setFilteredAssignments(filtered);
@@ -218,15 +255,6 @@ const Tugas: React.FC = () => {
             </div>
           </Chip>
         );
-      case 'sedang_dikerjakan':
-        return (
-          <Chip color="primary" variant="flat" size="sm">
-            <div className="flex items-center gap-1">
-              <FiClock size={14} />
-              <span>Sedang Dikerjakan</span>
-            </div>
-          </Chip>
-        );
       case 'selesai':
         return (
           <Chip color="success" variant="flat" size="sm">
@@ -260,8 +288,7 @@ const Tugas: React.FC = () => {
   const renderCard = (assignment: Assignment) => {
     const isLate = isDeadlinePassed(assignment.deadline) && assignment.status !== 'selesai';
     const statusColor = isLate ? 'danger' : 
-                       assignment.status === 'selesai' ? 'success' : 
-                       assignment.status === 'sedang_dikerjakan' ? 'primary' : 'warning';
+                       assignment.status === 'selesai' ? 'success' : 'warning';
     
     return (
       <Card 
@@ -356,11 +383,10 @@ const Tugas: React.FC = () => {
   const getAssignmentStats = () => {
     const total = assignments.length;
     const completed = assignments.filter(a => a.status === 'selesai').length;
-    const inProgress = assignments.filter(a => a.status === 'sedang_dikerjakan').length;
-    const notStarted = assignments.filter(a => a.status === 'belum_dikerjakan').length;
+    const notStarted = assignments.filter(a => a.status === 'belum_dikerjakan' && !isDeadlinePassed(a.deadline)).length;
     const late = assignments.filter(a => isDeadlinePassed(a.deadline) && a.status !== 'selesai').length;
     
-    return { total, completed, inProgress, notStarted, late };
+    return { total, completed, notStarted, late };
   };
 
   const renderAssignmentStats = () => {
@@ -490,7 +516,7 @@ const Tugas: React.FC = () => {
                   }}
                 >
                   <DropdownItem key="belum_dikerjakan">Belum Dikerjakan</DropdownItem>
-                  <DropdownItem key="sedang_dikerjakan">Sedang Dikerjakan</DropdownItem>
+                  <DropdownItem key="terlambat">Terlambat</DropdownItem>
                   <DropdownItem key="selesai">Selesai</DropdownItem>
                 </DropdownMenu>
               </Dropdown>
@@ -513,7 +539,6 @@ const Tugas: React.FC = () => {
                   <DropdownItem key="deadline_asc">Deadline (Terdekat)</DropdownItem>
                   <DropdownItem key="deadline_desc">Deadline (Terjauh)</DropdownItem>
                   <DropdownItem key="status">Status</DropdownItem>
-                  <DropdownItem key="matapelajaran">Mata Pelajaran</DropdownItem>
                 </DropdownMenu>
               </Dropdown>
               
@@ -532,14 +557,14 @@ const Tugas: React.FC = () => {
                 <Chip 
                   size="sm" 
                   variant="flat" 
-                  color={statusFilter === 'selesai' ? 'success' : statusFilter === 'sedang_dikerjakan' ? 'primary' : 'warning'}
+                  color={statusFilter === 'selesai' ? 'success' : statusFilter === 'terlambat' ? 'danger' : 'warning'}
                   onClose={() => {
                     setStatusFilter(null);
                     setTimeout(() => applyFilters(), 0);
                   }}
                 >
                   {statusFilter === 'belum_dikerjakan' ? 'Belum Dikerjakan' : 
-                   statusFilter === 'sedang_dikerjakan' ? 'Sedang Dikerjakan' : 'Selesai'}
+                   statusFilter === 'terlambat' ? 'Terlambat' : 'Selesai'}
                 </Chip>
               </div>
             )}
@@ -557,8 +582,7 @@ const Tugas: React.FC = () => {
                   }}
                 >
                   {sortBy === 'deadline_asc' ? 'Deadline (Terdekat)' : 
-                   sortBy === 'deadline_desc' ? 'Deadline (Terjauh)' : 
-                   sortBy === 'status' ? 'Status' : 'Mata Pelajaran'}
+                   sortBy === 'deadline_desc' ? 'Deadline (Terjauh)' : 'Status'}
                 </Chip>
               </div>
             )}

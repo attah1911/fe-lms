@@ -119,13 +119,11 @@ const MataPelajaranDetail: React.FC<MataPelajaranDetailProps> = ({ id }) => {
       try {
         setLoading(true);
         
-        // First check enrollment status
         const enrolled = await fetchEnrollmentStatus();
         
         const mataPelajaranResponse = await getMataPelajaranById(id);
         setMataPelajaran(mataPelajaranResponse.data);
         
-        // Only fetch materi if enrolled
         if (enrolled) {
           try {
             const materiResponse = await getMateriByMataPelajaranId(id);
@@ -197,7 +195,6 @@ const MataPelajaranDetail: React.FC<MataPelajaranDetailProps> = ({ id }) => {
       
       setIsEnrolled(true);
       
-      // Reload materi after enrollment
       try {
         const materiResponse = await getMateriByMataPelajaranId(id);
         setMateriList(materiResponse.data);

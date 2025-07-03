@@ -61,9 +61,8 @@ const TeacherAssignmentsPage: React.FC = () => {
       if (response && response.data && response.data.length > 0) {
         setMataPelajaranList(response.data);
         
-        await fetchMateriForMataPelajaran(response.data);
+        await fetchMateriAndAssignments(response.data);
       } else {
-        
         setLoading(false);
       }
     } catch (err: any) {
@@ -74,68 +73,86 @@ const TeacherAssignmentsPage: React.FC = () => {
     }
   }, []);
 
-  const fetchMateriForMataPelajaran = useCallback(async (mataPelajaranData: ExtendedMataPelajaran[]) => {
+  const fetchMateriAndAssignments = useCallback(async (mataPelajaranData: ExtendedMataPelajaran[]) => {
     setLoadingMateri(true);
-    const updatedMataPelajaranList: ExtendedMataPelajaran[] = [];
     
-    for (const mp of mataPelajaranData) {
-      try {
-        const materiResponse = await getMateriByMataPelajaranId(mp._id as string);
-        
-        if (materiResponse && materiResponse.data) {
-          updatedMataPelajaranList.push({
-            ...mp,
-            materiPelajaranList: materiResponse.data
-          });
-        } else {
-          updatedMataPelajaranList.push(mp);
-        }
-      } catch (err) {
-        console.error(`Error fetching materi for mata pelajaran ${mp._id}:`, err);
-        updatedMataPelajaranList.push(mp);
-      }
-    }
-    
-    setMataPelajaranList(updatedMataPelajaranList);
-    setLoadingMateri(false);
-    
-    await fetchAssignmentsForMataPelajaran(updatedMataPelajaranList);
-  }, []);
-  
-  const fetchAssignmentsForMataPelajaran = useCallback(async (mataPelajaranData: ExtendedMataPelajaran[]) => {
     try {
+      const materiPromises = mataPelajaranData.map(async (mp) => {
+        try {
+          const materiResponse = await getMateriByMataPelajaranId(mp._id as string);
+          return {
+            mataPelajaran: mp,
+            materi: materiResponse?.data || []
+          };
+        } catch (err) {
+          console.error(`Error fetching materi for mata pelajaran ${mp._id}:`, err);
+          return {
+            mataPelajaran: mp,
+            materi: []
+          };
+        }
+      });
+      
+      const materiResults = await Promise.all(materiPromises);
+      
+      const updatedMataPelajaranList: ExtendedMataPelajaran[] = materiResults.map(({ mataPelajaran, materi }) => ({
+        ...mataPelajaran,
+        materiPelajaranList: materi
+      }));
+      
+      setMataPelajaranList(updatedMataPelajaranList);
+      setLoadingMateri(false);
+      
+      const assignmentPromises: Promise<{
+        mataPelajaran: ExtendedMataPelajaran;
+        materi: Materi;
+        assignments: Assignment[];
+      }>[] = [];
+      
+      updatedMataPelajaranList.forEach(mp => {
+        if (mp.materiPelajaranList && mp.materiPelajaranList.length > 0) {
+          mp.materiPelajaranList.forEach((materi: Materi) => {
+            assignmentPromises.push(
+              getAssignmentsByMateriId(materi._id).then(response => ({
+                mataPelajaran: mp,
+                materi: materi,
+                assignments: response?.data || []
+              })).catch(error => {
+                console.error(`Error fetching assignments for materi ${materi._id}:`, error);
+                return {
+                  mataPelajaran: mp,
+                  materi: materi,
+                  assignments: []
+                };
+              })
+            );
+          });
+        }
+      });
+      
+      const assignmentResults = await Promise.all(assignmentPromises);
+      
       let allAssignments: ExtendedAssignment[] = [];
       
-      for (const mataPelajaran of mataPelajaranData) {
-        if (mataPelajaran.materiPelajaranList && mataPelajaran.materiPelajaranList.length > 0) {
+      assignmentResults.forEach(({ mataPelajaran, materi, assignments }) => {
+        if (assignments.length > 0) {
+          const assignmentsWithContext = assignments.map((assignment: Assignment) => ({
+            ...assignment,
+            mataPelajaranTitle: mataPelajaran.judul,
+            materiTitle: materi.judul,
+          }));
           
-          for (const materi of mataPelajaran.materiPelajaranList) {
-            try {
-              const response = await getAssignmentsByMateriId(materi._id);
-              
-              if (response && response.data) {
-                const assignmentsWithContext = response.data.map((assignment: Assignment) => ({
-                  ...assignment,
-                  mataPelajaranTitle: mataPelajaran.judul,
-                  materiTitle: materi.judul,
-                }));
-                allAssignments = [...allAssignments, ...assignmentsWithContext];
-              }
-            } catch (err) {
-              console.error(`Error fetching assignments for materi ${materi._id}:`, err);
-            }
-          }
-        } else {
-          
+          allAssignments = [...allAssignments, ...assignmentsWithContext];
         }
-      }
+      });
       
+
       allAssignments.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       
       setAssignments(allAssignments);
       setError(null);
     } catch (err: any) {
-      console.error("Error fetching assignments:", err);
+      console.error("Error in fetchMateriAndAssignments:", err);
       setError(err.message || "Failed to load assignments");
       setShowError(true);
     } finally {

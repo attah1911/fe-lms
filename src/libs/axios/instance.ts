@@ -31,13 +31,31 @@ const updateLoading = (isLoading: boolean) => {
   }
 };
 
+let cachedSession: SessionExtended | null = null;
+let sessionCacheTime: number = 0;
+const SESSION_CACHE_DURATION = 30 * 1000;
+
+const getSessionCached = async (): Promise<SessionExtended | null> => {
+  const currentTime = Date.now();
+  
+  if (cachedSession && (currentTime - sessionCacheTime < SESSION_CACHE_DURATION)) {
+    return cachedSession;
+  }
+  
+  const newSession = await getSession() as SessionExtended | null;
+  cachedSession = newSession;
+  sessionCacheTime = currentTime;
+  
+  return newSession;
+};
+
 instance.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
     activeRequests++;
     updateLoading(true);
 
     try {
-      const session = await getSession() as SessionExtended | null;
+      const session = await getSessionCached();
       
       if (session?.accessToken) {
         config.headers.set('Authorization', `Bearer ${session.accessToken}`);
@@ -81,6 +99,7 @@ instance.interceptors.response.use(
     }
 
     if (error.response.status === 401 || error.response.status === 403) {
+      cachedSession = null;
       error.isAuthError = true;
     }
 

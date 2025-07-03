@@ -121,54 +121,93 @@ const TeacherGradingPage: React.FC = () => {
       let allAssignments: ExtendedAssignment[] = [];
       const assignmentsByMp: {[key: string]: ExtendedAssignment[]} = {};
       
-      for (const mataPelajaran of mataPelajaranData) {
+      const materiPromises = mataPelajaranData.map(async (mataPelajaran) => {
         assignmentsByMp[mataPelajaran._id as string] = [];
         
-        const materiResponse = await getMateriByMataPelajaranId(mataPelajaran._id as string);
-        
-        if (materiResponse && materiResponse.data && materiResponse.data.length > 0) {
-          for (const materi of materiResponse.data) {
-            const assignmentResponse = await getAssignmentsByMateriId(materi._id);
-            
-            if (assignmentResponse && assignmentResponse.data) {
-              const assignmentsWithContext = assignmentResponse.data.map((assignment: Assignment) => ({
-                ...assignment,
+        try {
+          const materiResponse = await getMateriByMataPelajaranId(mataPelajaran._id as string);
+          return {
+            mataPelajaran,
+            materi: materiResponse?.data || []
+          };
+        } catch (error) {
+          console.error(`Error fetching materi for mata pelajaran ${mataPelajaran._id}:`, error);
+          return {
+            mataPelajaran,
+            materi: []
+          };
+        }
+      });
+      
+      const materiResults = await Promise.all(materiPromises);
+      
+      const assignmentPromises: Promise<{
+        mataPelajaran: ExtendedMataPelajaran;
+        materi: Materi;
+        assignments: ExtendedAssignment[];
+      }>[] = [];
+      
+      materiResults.forEach(({ mataPelajaran, materi }) => {
+        if (materi.length > 0) {
+          materi.forEach((materiItem: Materi) => {
+            assignmentPromises.push(
+              getAssignmentsByMateriId(materiItem._id).then(response => ({
+                mataPelajaran,
+                materi: materiItem,
+                assignments: response?.data || []
+              })).catch(error => {
+                console.error(`Error fetching assignments for materi ${materiItem._id}:`, error);
+                return {
+                  mataPelajaran,
+                  materi: materiItem,
+                  assignments: []
+                };
+              })
+            );
+          });
+        }
+      });
+      
+      const assignmentResults = await Promise.all(assignmentPromises);
+      
+      assignmentResults.forEach(({ mataPelajaran, materi, assignments }) => {
+        if (assignments.length > 0) {
+          const assignmentsWithContext = assignments.map((assignment: Assignment) => ({
+            ...assignment,
+            mataPelajaranTitle: mataPelajaran.judul,
+            materiTitle: materi.judul,
+          }));
+          
+          allAssignments = [...allAssignments, ...assignmentsWithContext];
+          assignmentsByMp[mataPelajaran._id as string] = [
+            ...assignmentsByMp[mataPelajaran._id as string],
+            ...assignmentsWithContext
+          ];
+          
+          assignments.forEach(assignment => {
+            if (assignment.submissions && assignment.submissions.length > 0) {
+              const submissionsWithContext = assignment.submissions.map((submission: any) => ({
+                _id: submission._id,
+                assignmentId: assignment._id,
+                assignmentTitle: assignment.title,
                 mataPelajaranTitle: mataPelajaran.judul,
                 materiTitle: materi.judul,
+                studentName: submission.student?.fullName || "Siswa",
+                studentNIS: submission.student?.nis || "",
+                studentClass: submission.student?.kelas || "",
+                submittedAt: submission.submittedAt,
+                status: submission.status,
+                score: submission.score,
+                fileUrl: submission.fileUrl,
+                fileName: submission.fileName,
+                feedback: submission.feedback
               }));
               
-              allAssignments = [...allAssignments, ...assignmentsWithContext];
-              assignmentsByMp[mataPelajaran._id as string] = [
-                ...assignmentsByMp[mataPelajaran._id as string],
-                ...assignmentsWithContext
-              ];
-              
-              for (const assignment of assignmentResponse.data) {
-                if (assignment.submissions && assignment.submissions.length > 0) {
-                  const submissionsWithContext = assignment.submissions.map((submission: any) => ({
-                    _id: submission._id,
-                    assignmentId: assignment._id,
-                    assignmentTitle: assignment.title,
-                    mataPelajaranTitle: mataPelajaran.judul,
-                    materiTitle: materi.judul,
-                    studentName: submission.student?.fullName || "Siswa",
-                    studentNIS: submission.student?.nis || "",
-                    studentClass: submission.student?.kelas || "",
-                    submittedAt: submission.submittedAt,
-                    status: submission.status,
-                    score: submission.score,
-                    fileUrl: submission.fileUrl,
-                    fileName: submission.fileName,
-                    feedback: submission.feedback
-                  }));
-                  
-                  allSubmissions = [...allSubmissions, ...submissionsWithContext];
-                }
-              }
+              allSubmissions = [...allSubmissions, ...submissionsWithContext];
             }
-          }
+          });
         }
-      }
+      });
       
       allSubmissions.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
       
@@ -288,12 +327,8 @@ const TeacherGradingPage: React.FC = () => {
   };
 
   useEffect(() => {
-    if (selectedMataPelajaran !== "all") {
-      if (selectedAssignment !== "all") {
-        setSelectedAssignment("all");
-      }
-    }
-  }, [selectedMataPelajaran, selectedAssignment]);
+    setSelectedAssignment("all");
+  }, [selectedMataPelajaran]);
 
   const filteredSubmissions = submissions.filter(submission => {
     if (selectedMataPelajaran !== "all" && submission.mataPelajaranTitle !== mataPelajaranList.find(mp => mp._id === selectedMataPelajaran)?.judul) {

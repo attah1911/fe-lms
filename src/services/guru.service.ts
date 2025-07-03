@@ -65,6 +65,18 @@ export const deleteGuruMataPelajaran = async (id: string) => {
 
 export const getCurrentTeacher = async (): Promise<{ _id: string; fullName: string }> => {
   try {
+    try {
+      const profileResponse = await getTeacherProfile();
+      if (profileResponse && profileResponse.data) {
+        return {
+          _id: profileResponse.data._id,
+          fullName: profileResponse.data.fullName
+        };
+      }
+    } catch (profileError) {
+      console.log("Could not fetch teacher profile, trying mata pelajaran fallback");
+    }
+    
     const response = await getGuruMataPelajaran({ page: 1, limit: 1 });
     
     if (response.data && response.data.length > 0) {
@@ -77,7 +89,7 @@ export const getCurrentTeacher = async (): Promise<{ _id: string; fullName: stri
       }
     }
     
-    throw new Error("No mata pelajaran found for current teacher");
+    throw new Error("No teacher data found. Please make sure your account is properly set up.");
   } catch (error: any) {
     console.error("Error in getCurrentTeacher:", error);
     throw new Error("Failed to get current teacher data. Please try again later.");
