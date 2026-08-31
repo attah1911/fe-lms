@@ -73,8 +73,8 @@ export const getCurrentTeacher = async (): Promise<{ _id: string; fullName: stri
           fullName: profileResponse.data.fullName
         };
       }
-    } catch (profileError) {
-      console.log("Could not fetch teacher profile, trying mata pelajaran fallback");
+    } catch {
+      // no teacher profile — fall through to the mata pelajaran lookup below
     }
     
     const response = await getGuruMataPelajaran({ page: 1, limit: 1 });
