@@ -11,11 +11,10 @@ import UserProfileCard from "../../../commons/Dashboard/UserProfileCard";
 import SubjectCard from "../../../commons/Dashboard/SubjectCard";
 import SubjectSearch from "../../../commons/Dashboard/SubjectSearch";
 import StatisticsCard from "../../../commons/Dashboard/StatisticsCard";
-import authServices from "../../../../services/auth.service";
 import todoService, { Todo } from "../../../../services/todo.service";
 import { getEnrolledMataPelajaran, getNotifications, markNotificationAsRead, markAllNotificationsAsRead, getStudentAssignments, markAssignmentCompletion, Notification, Assignment } from "../../../../services/student.service";
 import { SessionExtended } from "../../../../types/Auth";
-import { IProfile } from "../../../../types/Profile";
+import { useProfile } from "../../../../hooks/useProfile";
 import { format } from "date-fns";
 import { id } from "date-fns/locale";
 import { PaginationMeta } from "../../../../types/common";
@@ -42,8 +41,8 @@ const Dashboard: React.FC = () => {
   const [isSearching, setIsSearching] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [profileData, setProfileData] = useState<IProfile | null>(null);
-  
+  const { profile } = useProfile();
+
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isNotificationOpen, setIsNotificationOpen] = useState<boolean>(false);
   const [loadingNotifications, setLoadingNotifications] = useState<boolean>(false);
@@ -88,18 +87,11 @@ const Dashboard: React.FC = () => {
         setLoading(true);
 
         // all independent — start together, resolve in parallel
-        const profileP = authServices.getProfile();
+        // (profile comes from useProfile())
         const enrolledP = getEnrolledMataPelajaran();
         const assignmentsP = getStudentAssignments();
         const notificationsP = fetchNotifications();
         const todosP = fetchTodos();
-
-          try {
-        const profileResponse = await profileP;
-        setProfileData(profileResponse.data.data);
-          } catch (error) {
-            console.error('Error fetching profile:', error);
-          }
 
         try {
           const enrolledResponse = await enrolledP;
@@ -649,11 +641,11 @@ const Dashboard: React.FC = () => {
         <>
           <div className="block md:hidden mb-6">
             <UserProfileCard 
-              user={profileData ? {
+              user={profile ? {
                 ...session.user,
-                profilePicture: profileData.profilePicture,
-                fullName: profileData.fullName,
-                email: profileData.email
+                profilePicture: profile.profilePicture,
+                fullName: profile.fullName,
+                email: profile.email
               } : session.user} 
             />
           </div>
@@ -676,11 +668,11 @@ const Dashboard: React.FC = () => {
           <div className="hidden md:grid md:grid-cols-3 md:gap-5 md:mb-5">
             <div className="col-span-1">
               <UserProfileCard 
-                user={profileData ? {
+                user={profile ? {
                   ...session.user,
-                  profilePicture: profileData.profilePicture,
-                  fullName: profileData.fullName,
-                  email: profileData.email
+                  profilePicture: profile.profilePicture,
+                  fullName: profile.fullName,
+                  email: profile.email
                 } : session.user} 
               />
             </div>

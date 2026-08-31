@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { useSession } from "next-auth/react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardBody, Spinner, Button } from "@nextui-org/react";
 import { FiUsers, FiBook, FiUserCheck, FiChevronLeft, FiChevronRight } from "react-icons/fi";
 import PageContainer from "../../../commons/PageContainer";
@@ -9,11 +10,10 @@ import StatisticsCard from "../../../commons/Dashboard/StatisticsCard";
 import UserProfileCard from "../../../commons/Dashboard/UserProfileCard";
 import SubjectCard from "../../../commons/Dashboard/SubjectCard";
 import SubjectSearch from "../../../commons/Dashboard/SubjectSearch";
-import statsService, { DashboardStats } from "../../../../services/stats.service";
-import authServices from "../../../../services/auth.service";
+import statsService from "../../../../services/stats.service";
 import { getMataPelajaran } from "../../../../services/admin.service";
 import { SessionExtended } from "../../../../types/Auth";
-import { IProfile } from "../../../../types/Profile";
+import { useProfile } from "../../../../hooks/useProfile";
 import { useRouter } from "next/router";
 
 interface Subject {
@@ -36,10 +36,7 @@ interface PaginationData {
 
 const Dashboard: React.FC = () => {
   const { data: session } = useSession() as { data: SessionExtended | null };
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [profileData, setProfileData] = useState<IProfile | null>(null);
   const [searchResults, setSearchResults] = useState<Subject[] | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const router = useRouter();
@@ -49,30 +46,16 @@ const Dashboard: React.FC = () => {
     current: 1
   });
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const [statsData, profileResponse] = await Promise.all([
-          statsService.getDashboardStats(),
-          authServices.getProfile(),
-        ]);
-        setStats(statsData);
-        setProfileData(profileResponse.data.data);
-
-        setError(null);
-      } catch (err: any) {
-        setError(err.message || "Failed to fetch dashboard data");
-        console.error("Dashboard error:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (session?.user) {
-      fetchData();
-    }
-  }, [session]);
+  const { profile } = useProfile();
+  const {
+    data: stats,
+    isLoading: loading,
+    error: statsError,
+  } = useQuery({
+    queryKey: ["stats", "admin"],
+    queryFn: statsService.getDashboardStats,
+    enabled: !!session?.user,
+  });
 
   const handleSearch = async (searchTerm: string) => {
     try {
@@ -306,22 +289,22 @@ const Dashboard: React.FC = () => {
         description="Selamat datang di halaman Dashboard Admin" 
       />
 
-      {error && (
+      {(error || statsError) && (
         <div className="mb-6">
           <NotificationAlert
             type="error"
-            message={error}
+            message={error ?? (statsError as Error).message}
             onClose={() => setError(null)}
           />
         </div>
       )}
 
       <div className="mb-6">
-        <UserProfileCard 
-          user={profileData ? {
+        <UserProfileCard
+          user={profile ? {
             ...session.user,
-            profilePicture: profileData.profilePicture
-          } : session.user} 
+            profilePicture: profile.profilePicture
+          } : session.user}
         />
       </div>
 
