@@ -53,12 +53,13 @@ const Dashboard: React.FC = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const statsData = await statsService.getDashboardStats();
+        const [statsData, profileResponse] = await Promise.all([
+          statsService.getDashboardStats(),
+          authServices.getProfile(),
+        ]);
         setStats(statsData);
-        
-        const profileResponse = await authServices.getProfile();
         setProfileData(profileResponse.data.data);
-        
+
         setError(null);
       } catch (err: any) {
         setError(err.message || "Failed to fetch dashboard data");

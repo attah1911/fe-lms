@@ -122,17 +122,22 @@ const Dashboard: React.FC = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        
-        const profileResponse = await authServices.getProfile();
+
+        // profile, todos and notifications are independent — fetch in parallel
+        const [profileResponse] = await Promise.all([
+          authServices.getProfile(),
+          fetchTodos(),
+          fetchNotifications(1),
+        ]);
         setProfileData(profileResponse.data.data);
-        
+
         try {
           const guruStats = await statsService.getGuruStats();
           setStats(guruStats);
         } catch (statsErr) {
           console.error("Error fetching guru stats:", statsErr);
           const mataPelajaranResponse = await getGuruMataPelajaran({ page: 1, limit: 6 });
-          
+
           setStats({
             mataPelajaranCount: mataPelajaranResponse.pagination?.total || 0,
             muridCount: 0,
@@ -140,11 +145,7 @@ const Dashboard: React.FC = () => {
             recentSubjects: mataPelajaranResponse.data || []
           });
         }
-        
-        await fetchTodos();
-        
-        fetchNotifications(1);
-        
+
         setError(null);
       } catch (err: any) {
         setError(err.message || "Failed to fetch dashboard data");

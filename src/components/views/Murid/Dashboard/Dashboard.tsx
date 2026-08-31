@@ -86,16 +86,23 @@ const Dashboard: React.FC = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        
+
+        // all independent — start together, resolve in parallel
+        const profileP = authServices.getProfile();
+        const enrolledP = getEnrolledMataPelajaran();
+        const assignmentsP = getStudentAssignments();
+        const notificationsP = fetchNotifications();
+        const todosP = fetchTodos();
+
           try {
-        const profileResponse = await authServices.getProfile();
+        const profileResponse = await profileP;
         setProfileData(profileResponse.data.data);
           } catch (error) {
             console.error('Error fetching profile:', error);
           }
-        
+
         try {
-          const enrolledResponse = await getEnrolledMataPelajaran();
+          const enrolledResponse = await enrolledP;
           setEnrolledSubjects(enrolledResponse.data || []);
           setPagination({
             total: enrolledResponse.meta?.pagination?.total || 0,
@@ -108,7 +115,7 @@ const Dashboard: React.FC = () => {
           }
           
           try {
-            const assignmentsResponse = await getStudentAssignments();
+            const assignmentsResponse = await assignmentsP;
             
             const now = new Date();
             const pending = assignmentsResponse.data.filter((assignment: any) => {
@@ -121,9 +128,9 @@ const Dashboard: React.FC = () => {
             console.error('Error fetching assignments:', error);
           }
           
-          await fetchNotifications();
-          
-          await fetchTodos();
+          await notificationsP;
+
+          await todosP;
       } catch (err: any) {
           setError(err.message || 'Failed to fetch data');
       } finally {
