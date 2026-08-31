@@ -10,12 +10,11 @@ import UserProfileCard from "../../../commons/Dashboard/UserProfileCard";
 import SubjectCard from "../../../commons/Dashboard/SubjectCard";
 import SubjectSearch from "../../../commons/Dashboard/SubjectSearch";
 import statsService from "../../../../services/stats.service";
-import authServices from "../../../../services/auth.service";
 import todoService, { Todo } from "../../../../services/todo.service";
 import notificationService, { Notification as NotificationType } from "../../../../services/notification.service";
 import { getGuruMataPelajaran } from "../../../../services/guru.service";
 import { SessionExtended } from "../../../../types/Auth";
-import { IProfile } from "../../../../types/Profile";
+import { useProfile } from "../../../../hooks/useProfile";
 import { useRouter } from "next/router";
 import { format } from "date-fns";
 import { id } from "date-fns/locale";
@@ -77,7 +76,7 @@ const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<GuruStats | null>(null);
-  const [profileData, setProfileData] = useState<IProfile | null>(null);
+  const { profile } = useProfile();
   const [searchResults, setSearchResults] = useState<Subject[] | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const router = useRouter();
@@ -122,17 +121,18 @@ const Dashboard: React.FC = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        
-        const profileResponse = await authServices.getProfile();
-        setProfileData(profileResponse.data.data);
-        
+
+        // todos and notifications are independent — fetch in parallel
+        // (profile comes from useProfile())
+        await Promise.all([fetchTodos(), fetchNotifications(1)]);
+
         try {
           const guruStats = await statsService.getGuruStats();
           setStats(guruStats);
         } catch (statsErr) {
           console.error("Error fetching guru stats:", statsErr);
           const mataPelajaranResponse = await getGuruMataPelajaran({ page: 1, limit: 6 });
-          
+
           setStats({
             mataPelajaranCount: mataPelajaranResponse.pagination?.total || 0,
             muridCount: 0,
@@ -140,11 +140,7 @@ const Dashboard: React.FC = () => {
             recentSubjects: mataPelajaranResponse.data || []
           });
         }
-        
-        await fetchTodos();
-        
-        fetchNotifications(1);
-        
+
         setError(null);
       } catch (err: any) {
         setError(err.message || "Failed to fetch dashboard data");
@@ -846,13 +842,13 @@ const Dashboard: React.FC = () => {
       )}
 
       <div className="mb-6">
-        <UserProfileCard 
-          user={profileData ? {
+        <UserProfileCard
+          user={profile ? {
             ...session.user,
-            profilePicture: profileData.profilePicture,
-            fullName: profileData.fullName,
-            email: profileData.email
-          } : session.user} 
+            profilePicture: profile.profilePicture,
+            fullName: profile.fullName,
+            email: profile.email
+          } : session.user}
         />
       </div>
 

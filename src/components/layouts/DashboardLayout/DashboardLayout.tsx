@@ -5,7 +5,7 @@ import {
   SIDEBAR_ADMIN,
   SIDEBAR_GURU,
   SIDEBAR_MURID,
-} from "./DashboardLayout.constans";
+} from "./DashboardLayout.constants";
 import { Navbar, NavbarMenuToggle } from "@nextui-org/react";
 
 interface PropTypes {

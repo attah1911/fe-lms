@@ -79,7 +79,6 @@ const Register: React.FC = () => {
                   autoComplete="off"
                   isInvalid={Boolean(fieldState.error)}
                   errorMessage={fieldState.error?.message}
-                  description="Hanya huruf dan spasi, maksimal 50 karakter"
                   onChange={(e) => {
                     const value = e.target.value.replace(/[^A-Za-z\s]/g, '');
                     field.onChange(value);
@@ -100,7 +99,6 @@ const Register: React.FC = () => {
                   autoComplete="off"
                   isInvalid={Boolean(fieldState.error)}
                   errorMessage={fieldState.error?.message}
-                  description="Minimal mengandung 3 huruf, maksimal 15 karakter"
                   onChange={(e) => {
                     const value = e.target.value.replace(/[^A-Za-z0-9]/g, '');
                     field.onChange(value);
@@ -136,7 +134,6 @@ const Register: React.FC = () => {
                   autoComplete="off"
                   isInvalid={Boolean(fieldState.error)}
                   errorMessage={fieldState.error?.message}
-                  description="Minimal 6 karakter, harus ada huruf kapital dan angka"
                   endContent={
                     <button
                       className="focus:outline-none"

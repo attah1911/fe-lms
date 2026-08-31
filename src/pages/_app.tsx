@@ -19,6 +19,7 @@ const queryClient = new QueryClient({
     queries: {
       refetchOnWindowFocus: false,
       retry: false,
+      staleTime: 60 * 1000, // treat data as fresh for 1 min — no refetch when navigating back
     },
   },
 });
