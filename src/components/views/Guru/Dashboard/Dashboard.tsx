@@ -1,8 +1,8 @@
 import React, { useState } from "react";
 import { useSession } from "next-auth/react";
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Card, CardBody, Spinner, Button, Input, Textarea, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, useDisclosure, Chip, Divider, Popover, PopoverTrigger, PopoverContent } from "@nextui-org/react";
-import { FiBook, FiChevronLeft, FiChevronRight, FiList, FiPlus, FiAlertTriangle, FiBell, FiCheckCircle, FiUserPlus, FiFileText, FiCheck } from "react-icons/fi";
+import { Card, CardBody, Spinner, Button } from "@nextui-org/react";
+import { FiBook, FiAlertTriangle, FiUserPlus, FiFileText } from "react-icons/fi";
 import PageContainer from "../../../commons/PageContainer";
 import PageHeader from "../../../commons/PageHeader";
 import NotificationAlert from "../../../commons/NotificationAlert/NotificationAlert";
@@ -10,15 +10,15 @@ import StatisticsCard from "../../../commons/Dashboard/StatisticsCard";
 import UserProfileCard from "../../../commons/Dashboard/UserProfileCard";
 import SubjectCard from "../../../commons/Dashboard/SubjectCard";
 import SubjectSearch from "../../../commons/Dashboard/SubjectSearch";
+import TablePagination from "../../../commons/Table/TablePagination";
+import CatatanSaya from "../../../commons/Dashboard/CatatanSaya";
+import NotificationBell, { NotificationBellItem } from "../../../commons/Dashboard/NotificationBell";
 import statsService from "../../../../services/stats.service";
-import todoService, { Todo } from "../../../../services/todo.service";
 import notificationService, { Notification as NotificationType } from "../../../../services/notification.service";
 import { getGuruMataPelajaran } from "../../../../services/guru.service";
 import { SessionExtended } from "../../../../types/Auth";
 import { useProfile } from "../../../../hooks/useProfile";
 import { useRouter } from "next/router";
-import { formatTanggal, formatWaktuRelatif } from "@/utils/date";
-import NoteCard from "../../../commons/NoteCard";
 
 interface Subject {
   _id: string;
@@ -108,97 +108,6 @@ const Dashboard: React.FC = () => {
     setSubjectFilter((prev) => (prev ? { ...prev, page: newPage } : prev));
   };
 
-  // --- todos ----------------------------------------------------------------
-
-  const { data: todos = [], isLoading: loadingTodos } = useQuery({
-    queryKey: ["todos"],
-    queryFn: async () => (await todoService.getTodos()).data,
-    enabled,
-  });
-
-  const invalidateTodos = () => queryClient.invalidateQueries({ queryKey: ["todos"] });
-
-  const { isOpen, onOpen, onClose } = useDisclosure();
-  const { isOpen: isDeleteModalOpen, onOpen: onOpenDeleteModal, onClose: onCloseDeleteModal } = useDisclosure();
-  const [isEdit, setIsEdit] = useState(false);
-  const [currentTodo, setCurrentTodo] = useState<Todo | null>(null);
-  const [todoToDelete, setTodoToDelete] = useState<string | null>(null);
-  const [todoTitle, setTodoTitle] = useState('');
-  const [todoDescription, setTodoDescription] = useState('');
-  const [todoDueDate, setTodoDueDate] = useState('');
-
-  const resetTodoForm = () => {
-    setTodoTitle('');
-    setTodoDescription('');
-    setTodoDueDate('');
-    setCurrentTodo(null);
-    setIsEdit(false);
-  };
-
-  const saveTodoMutation = useMutation({
-    mutationFn: (todo: Omit<Todo, "_id" | "createdAt" | "updatedAt">) =>
-      isEdit && currentTodo?._id
-        ? todoService.updateTodo(currentTodo._id, todo)
-        : todoService.createTodo(todo),
-    onSuccess: () => {
-      flashSuccess(isEdit ? "Berhasil memperbarui tugas" : "Berhasil menambahkan tugas");
-      onClose();
-      resetTodoForm();
-      invalidateTodos();
-    },
-    onError: (err: Error) => setError(err.message || "Gagal menyimpan tugas"),
-  });
-
-  const deleteTodoMutation = useMutation({
-    mutationFn: (id: string) => todoService.deleteTodo(id),
-    onSuccess: () => {
-      flashSuccess("Berhasil menghapus tugas");
-      onCloseDeleteModal();
-      setTodoToDelete(null);
-      invalidateTodos();
-    },
-    onError: (err: Error) => setError(err.message || "Gagal menghapus tugas"),
-  });
-
-  const toggleTodoMutation = useMutation({
-    mutationFn: (id: string) => todoService.toggleTodoStatus(id),
-    onSuccess: invalidateTodos,
-    onError: (err: Error) => setError(err.message || "Gagal mengubah status tugas"),
-  });
-
-  const handleAddTodo = () => {
-    resetTodoForm();
-    onOpen();
-  };
-
-  const handleEditTodo = (todo: Todo) => {
-    setCurrentTodo(todo);
-    setTodoTitle(todo.title);
-    setTodoDescription(todo.description || '');
-    setTodoDueDate(todo.dueDate ? new Date(todo.dueDate).toISOString().split('T')[0] : '');
-    setIsEdit(true);
-    onOpen();
-  };
-
-  const handleConfirmDelete = (id: string) => {
-    setTodoToDelete(id);
-    onOpenDeleteModal();
-  };
-
-  const handleSaveTodo = () => {
-    if (!todoTitle) {
-      setError("Judul tugas harus diisi");
-      return;
-    }
-
-    saveTodoMutation.mutate({
-      title: todoTitle,
-      description: todoDescription,
-      dueDate: todoDueDate || undefined,
-      completed: isEdit ? currentTodo?.completed || false : false,
-    });
-  };
-
   // --- notifications --------------------------------------------------------
 
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
@@ -239,7 +148,9 @@ const Dashboard: React.FC = () => {
     onError: (err) => console.error("Failed to mark all notifications as read:", err),
   });
 
-  const handleNotificationClick = (notification: NotificationType) => {
+  const handleNotificationClick = (id: string) => {
+    const notification = notifications.find((item) => item._id === id);
+    if (!notification) return;
     if (!notification.isRead) markAsReadMutation.mutate(notification._id);
 
     if (notification.type === 'submission' && notification.relatedItem) {
@@ -250,8 +161,6 @@ const Dashboard: React.FC = () => {
       router.push(`/guru/matapelajaran/${notification.mataPelajaran._id}/tugas/${notification.relatedItem}`);
     }
   };
-
-  const toggleNotificationPopover = () => setIsNotificationOpen((open) => !open);
 
   // --- render helpers -------------------------------------------------------
 
@@ -290,188 +199,34 @@ const Dashboard: React.FC = () => {
     );
   };
 
-  const renderPagination = () => {
-    if (!subjectFilter || pagination.total === 0) return null;
 
-    return (
-      <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6 mt-4">
-        <div className="flex-1 flex flex-col sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm text-gray-700">
-              Showing{" "}
-              <span className="font-medium">
-                {(pagination.current - 1) * PAGE_SIZE + 1}
-              </span>{" "}
-              to{" "}
-              <span className="font-medium">
-                {Math.min(pagination.current * PAGE_SIZE, pagination.total)}
-              </span>{" "}
-              of <span className="font-medium">{pagination.total}</span>{" "}
-              results
-            </p>
-          </div>
-          <div className="mt-2 sm:mt-0">
-            <nav className="flex items-center gap-1">
-              <Button
-                isIconOnly
-                size="sm"
-                variant="flat"
-                onPress={() => handlePageChange(pagination.current - 1)}
-                isDisabled={pagination.current <= 1}
-                className={`min-w-8 h-8 ${
-                  pagination.current <= 1 ? "opacity-50 cursor-not-allowed" : ""
-                }`}
-              >
-                <FiChevronLeft className="h-4 w-4" />
-              </Button>
-
-              {pagination.totalPages > 0 && [...Array(pagination.totalPages)].map((_, index) => {
-                const pageNum = index + 1;
-                const isFirst = pageNum === 1;
-                const isLast = pageNum === pagination.totalPages;
-                const isCurrent = pageNum === pagination.current;
-                const isNearCurrent = Math.abs(pageNum - pagination.current) <= 1;
-
-                if (isFirst || isLast || isCurrent || isNearCurrent) {
-                  return (
-                    <Button
-                      key={pageNum}
-                      size="sm"
-                      variant={isCurrent ? "solid" : "flat"}
-                      onPress={() => handlePageChange(pageNum)}
-                      className={`min-w-8 h-8 ${
-                        isCurrent ? "bg-primary text-white" : ""
-                      }`}
-                    >
-                      {pageNum}
-                    </Button>
-                  );
-                } else if (
-                  (index === 1 && pagination.current > 3) ||
-                  (index === pagination.totalPages - 2 && pagination.current < pagination.totalPages - 2)
-                ) {
-                  return <span key={`ellipsis-${index}`} className="px-2">...</span>;
-                }
-                return null;
-              })}
-
-              <Button
-                isIconOnly
-                size="sm"
-                variant="flat"
-                onPress={() => handlePageChange(pagination.current + 1)}
-                isDisabled={pagination.current >= pagination.totalPages}
-                className={`min-w-8 h-8 ${
-                  pagination.current >= pagination.totalPages
-                    ? "opacity-50 cursor-not-allowed"
-                    : ""
-                }`}
-              >
-                <FiChevronRight className="h-4 w-4" />
-              </Button>
-            </nav>
-          </div>
-        </div>
-      </div>
-    );
+  const NOTIFICATION_STYLE: Record<string, { icon: React.ReactNode; iconClassName: string; label: string; color: "primary" | "success" | "warning" | "default" }> = {
+    submission: { icon: <FiFileText size={22} />, iconClassName: "bg-blue-100 text-blue-600", label: "Tugas", color: "primary" },
+    enrollment: { icon: <FiUserPlus size={22} />, iconClassName: "bg-blue-100 text-blue-600", label: "Pendaftaran", color: "success" },
+    grading_reminder: { icon: <FiAlertTriangle size={22} />, iconClassName: "bg-blue-100 text-blue-600", label: "Pengingat", color: "warning" },
   };
 
-  const renderNotifications = () => {
-    if (notificationsQuery.isLoading) {
-      return (
-        <div className="flex justify-center py-4">
-          <Spinner size="sm" />
-        </div>
-      );
-    }
+  const notificationItems: NotificationBellItem[] = notifications.map((notification) => {
+    const style = NOTIFICATION_STYLE[notification.type] ?? {
+      icon: <FiFileText size={22} />,
+      iconClassName: "bg-blue-100 text-blue-600",
+      label: "Info",
+      color: "default" as const,
+    };
 
-    if (notifications.length === 0) {
-      return (
-        <div className="flex flex-col items-center justify-center py-6">
-          <FiCheckCircle className="text-3xl sm:text-4xl text-success mb-2" />
-          <p className="text-gray-500 text-sm sm:text-base">Tidak ada notifikasi</p>
-        </div>
-      );
-    }
-
-    return (
-      <div>
-        {notifications.map((notification, index) => (
-          <React.Fragment key={notification._id || index}>
-            <div
-              className={`p-3 sm:p-4 cursor-pointer hover:bg-gray-50 ${!notification.isRead ? 'bg-blue-50' : ''} relative`}
-              onClick={() => handleNotificationClick(notification)}
-            >
-              <div className="flex gap-4">
-                <div className="flex-shrink-0">
-                  <div className="bg-blue-100 text-blue-600 rounded-full w-11 h-11 flex items-center justify-center">
-                    {notification.type === 'enrollment' ? (
-                      <FiUserPlus size={22} />
-                    ) : notification.type === 'grading_reminder' ? (
-                      <FiAlertTriangle size={22} />
-                    ) : (
-                      <FiFileText size={22} />
-                    )}
-                  </div>
-                </div>
-                <div className="flex-1">
-                  <div className="flex justify-between items-start">
-                    <h4 className="font-medium text-sm sm:text-base text-gray-800 line-clamp-1">{notification.title}</h4>
-                    <div className="flex-shrink-0 ml-2 mr-4">
-                      <span className="text-xs text-gray-500 whitespace-nowrap inline-block bg-white px-1.5 py-0.5 rounded-md">
-                        {formatWaktuRelatif(notification.createdAt)}
-                      </span>
-                    </div>
-                  </div>
-                  <p className="text-xs sm:text-sm text-gray-600 mt-0.5 line-clamp-2">{notification.description}</p>
-                  <div className="flex items-center mt-1 gap-2">
-                    <Chip
-                      size="sm"
-                      color={
-                        notification.type === 'submission' ? 'primary' :
-                        notification.type === 'enrollment' ? 'success' :
-                        notification.type === 'grading_reminder' ? 'warning' :
-                        'default'
-                      }
-                      className="h-5 text-xs"
-                    >
-                      {notification.type === 'submission' && 'Tugas'}
-                      {notification.type === 'enrollment' && 'Pendaftaran'}
-                      {notification.type === 'grading_reminder' && 'Pengingat'}
-                      {!['submission', 'enrollment', 'grading_reminder'].includes(notification.type) && 'Info'}
-                    </Chip>
-                    {notification.mataPelajaran && (
-                      <span className="text-xs text-gray-500 truncate">
-                        {notification.mataPelajaran.judul}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                {!notification.isRead && (
-                  <div className="absolute top-4 right-2 w-3 h-3 rounded-full bg-red-500"></div>
-                )}
-              </div>
-            </div>
-            {index < notifications.length - 1 && <Divider />}
-          </React.Fragment>
-        ))}
-
-        {notificationsQuery.hasNextPage && (
-          <div className="p-3 flex justify-center">
-            <Button
-              size="sm"
-              variant="flat"
-              onPress={() => notificationsQuery.fetchNextPage()}
-              isLoading={notificationsQuery.isFetchingNextPage}
-              isDisabled={notificationsQuery.isFetchingNextPage}
-            >
-              Muat lebih banyak
-            </Button>
-          </div>
-        )}
-      </div>
-    );
-  };
+    return {
+      id: notification._id,
+      title: notification.title,
+      description: notification.description,
+      createdAt: notification.createdAt,
+      isRead: notification.isRead,
+      icon: style.icon,
+      iconClassName: style.iconClassName,
+      badgeLabel: style.label,
+      badgeColor: style.color,
+      context: notification.mataPelajaran?.judul,
+    };
+  });
 
   if (!session?.user) {
     return null;
@@ -487,57 +242,34 @@ const Dashboard: React.FC = () => {
           />
         </div>
         <div className="flex items-center gap-4 pr-2">
-          <Popover
-            placement="bottom-end"
-            showArrow={true}
+          <NotificationBell
             isOpen={isNotificationOpen}
             onOpenChange={(open) => {
               setIsNotificationOpen(open);
               if (open) notificationsQuery.refetch();
             }}
-          >
-            <PopoverTrigger>
-              <div className="relative inline-block">
-                <Button
-                  isIconOnly
-                  variant="light"
-                  radius="full"
-                  onPress={toggleNotificationPopover}
-                  className="z-10"
-                >
-                  <FiBell size={20} className="text-gray-700" />
-                </Button>
-                {unreadCount > 0 && (
-                  <div className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 rounded-full z-20 flex items-center justify-center text-white text-xs font-bold px-1">
-                    {unreadCount > 99 ? '99+' : unreadCount}
-                  </div>
-                )}
-              </div>
-            </PopoverTrigger>
-            <PopoverContent className="w-[300px] sm:w-[360px] p-0">
-              <div className="p-3 sm:p-4 border-b">
-                <div className="flex items-center justify-center">
-                  <h3 className="font-semibold text-sm sm:text-base">Notifikasi</h3>
-                </div>
-                <div className="flex items-center justify-end mt-2">
+            unreadCount={unreadCount}
+            isLoading={notificationsQuery.isLoading}
+            items={notificationItems}
+            onItemClick={handleNotificationClick}
+            onMarkAllRead={() => markAllAsReadMutation.mutate()}
+            isMarkingAllRead={markAllAsReadMutation.isPending}
+            footer={
+              notificationsQuery.hasNextPage ? (
+                <div className="p-3 flex justify-center">
                   <Button
                     size="sm"
-                    variant="light"
-                    color="primary"
-                    onPress={() => markAllAsReadMutation.mutate()}
-                    isLoading={markAllAsReadMutation.isPending}
-                    className="text-xs sm:text-sm"
-                    startContent={<FiCheck size={14} />}
+                    variant="flat"
+                    onPress={() => notificationsQuery.fetchNextPage()}
+                    isLoading={notificationsQuery.isFetchingNextPage}
+                    isDisabled={notificationsQuery.isFetchingNextPage}
                   >
-                    Tandai semua dibaca
+                    Muat lebih banyak
                   </Button>
                 </div>
-              </div>
-              <div className="max-h-[280px] overflow-y-auto">
-                {renderNotifications()}
-              </div>
-            </PopoverContent>
-          </Popover>
+              ) : null
+            }
+          />
         </div>
       </div>
 
@@ -585,118 +317,10 @@ const Dashboard: React.FC = () => {
               icon={<FiBook size={24} />}
               color="success"
             />
-            <Card className="col-span-2">
-              <CardBody>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center">
-                    <FiList size={24} className="text-primary mr-2" />
-                    <h3 className="text-lg font-semibold">Catatan Saya</h3>
-                  </div>
-                  <Button
-                    color="primary"
-                    variant="light"
-                    startContent={<FiPlus />}
-                    onClick={handleAddTodo}
-                    size="sm"
-                  >
-                    Tambah Catatan
-                  </Button>
-                </div>
-
-                {loadingTodos ? (
-                  <div className="flex justify-center py-8">
-                    <Spinner size="sm" />
-                  </div>
-                ) : todos.length === 0 ? (
-                  <p className="text-center text-gray-500 py-4">
-                    Belum ada Catatan yang tersedia. Klik &quot;Tambah Catatan&quot; untuk membuat Note baru.
-                  </p>
-                ) : (
-                  <div className="space-y-3">
-                    {todos.map(todo => (
-                      <NoteCard
-                        key={todo._id}
-                        note={{
-                          _id: todo._id,
-                          title: todo.title,
-                          description: todo.description,
-                          dueDate: todo.dueDate,
-                          completed: todo.completed
-                        }}
-                        onToggleStatus={(id) => toggleTodoMutation.mutate(id)}
-                        onEdit={handleEditTodo}
-                        onDelete={handleConfirmDelete}
-                        formatDate={formatTanggal}
-                      />
-                    ))}
-                  </div>
-                )}
-              </CardBody>
-            </Card>
+            <div className="col-span-2">
+              <CatatanSaya enabled={enabled} onSuccess={flashSuccess} onError={setError} />
+            </div>
           </div>
-
-          <Modal isOpen={isOpen} onClose={onClose}>
-            <ModalContent>
-              <ModalHeader>{isEdit ? 'Edit Tugas' : 'Tambah Tugas'}</ModalHeader>
-              <ModalBody>
-                <Input
-                  label="Judul"
-                  placeholder="Masukkan judul tugas"
-                  value={todoTitle}
-                  onChange={(e) => setTodoTitle(e.target.value)}
-                  isRequired
-                  className="mb-3"
-                />
-                <Textarea
-                  label="Deskripsi (opsional)"
-                  placeholder="Masukkan deskripsi tugas"
-                  value={todoDescription}
-                  onChange={(e) => setTodoDescription(e.target.value)}
-                  className="mb-3"
-                />
-                <Input
-                  type="date"
-                  label="Tanggal Tenggat (opsional)"
-                  placeholder="Pilih tanggal tenggat"
-                  value={todoDueDate}
-                  onChange={(e) => setTodoDueDate(e.target.value)}
-                />
-              </ModalBody>
-              <ModalFooter>
-                <Button variant="flat" onPress={onClose}>
-                  Batal
-                </Button>
-                <Button color="primary" onPress={handleSaveTodo} isLoading={saveTodoMutation.isPending}>
-                  Simpan
-                </Button>
-              </ModalFooter>
-            </ModalContent>
-          </Modal>
-
-          <Modal isOpen={isDeleteModalOpen} onClose={onCloseDeleteModal}>
-            <ModalContent>
-              <ModalHeader className="flex gap-1">
-                <FiAlertTriangle className="text-danger" size={24} />
-                Konfirmasi Hapus
-              </ModalHeader>
-              <ModalBody>
-                <p>Apakah Anda yakin ingin menghapus tugas ini?</p>
-                <p className="text-sm text-gray-500">Tindakan ini tidak dapat dibatalkan.</p>
-              </ModalBody>
-              <ModalFooter>
-                <Button variant="flat" onPress={onCloseDeleteModal}>
-                  Batal
-                </Button>
-                <Button
-                  color="danger"
-                  onPress={() => todoToDelete && deleteTodoMutation.mutate(todoToDelete)}
-                  isLoading={deleteTodoMutation.isPending}
-                >
-                  Hapus
-                </Button>
-              </ModalFooter>
-            </ModalContent>
-          </Modal>
 
           <Card className="mb-6">
             <CardBody>
@@ -736,7 +360,16 @@ const Dashboard: React.FC = () => {
               renderSubjects()
             )}
 
-            {renderPagination()}
+            {subjectFilter && pagination.total > 0 && (
+              <TablePagination
+                total={pagination.total}
+                totalPages={pagination.totalPages}
+                current={pagination.current}
+                pageSize={PAGE_SIZE}
+                onPageChange={handlePageChange}
+                className="mt-4"
+              />
+            )}
           </div>
         </>
       )}

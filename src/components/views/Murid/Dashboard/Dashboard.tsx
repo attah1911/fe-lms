@@ -2,8 +2,8 @@ import React, { useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Card, CardBody, Spinner, Button, Chip, Divider, Input, Textarea, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, useDisclosure, Popover, PopoverTrigger, PopoverContent, Checkbox } from "@nextui-org/react";
-import { FiBook, FiClock, FiAlertCircle, FiBell, FiFileText, FiPlus, FiCheckCircle, FiList, FiCheck } from "react-icons/fi";
+import { Card, CardBody, Spinner, Button, Checkbox } from "@nextui-org/react";
+import { FiBook, FiClock, FiFileText } from "react-icons/fi";
 
 import PageContainer from "../../../commons/PageContainer";
 import PageHeader from "../../../commons/PageHeader";
@@ -12,12 +12,12 @@ import UserProfileCard from "../../../commons/Dashboard/UserProfileCard";
 import SubjectCard from "../../../commons/Dashboard/SubjectCard";
 import SubjectSearch from "../../../commons/Dashboard/SubjectSearch";
 import StatisticsCard from "../../../commons/Dashboard/StatisticsCard";
-import todoService, { Todo } from "../../../../services/todo.service";
+import CatatanSaya from "../../../commons/Dashboard/CatatanSaya";
+import NotificationBell, { NotificationBellItem } from "../../../commons/Dashboard/NotificationBell";
 import { getEnrolledMataPelajaran, getNotifications, markNotificationAsRead, markAllNotificationsAsRead, getStudentAssignments, markAssignmentCompletion, Notification, Assignment } from "../../../../services/student.service";
 import { SessionExtended } from "../../../../types/Auth";
 import { useProfile } from "../../../../hooks/useProfile";
-import { formatTanggal, formatWaktuRelatif } from "@/utils/date";
-import NoteCard from "../../../commons/NoteCard";
+import { formatTanggal } from "@/utils/date";
 
 
 interface Subject {
@@ -117,97 +117,6 @@ const Dashboard: React.FC = () => {
 
   const handleViewAll = () => router.push("/murid/matapelajaran");
 
-  // --- todos ----------------------------------------------------------------
-
-  const { data: todos = [], isLoading: loadingTodos } = useQuery({
-    queryKey: ["todos"],
-    queryFn: async () => (await todoService.getTodos()).data,
-    enabled,
-  });
-
-  const invalidateTodos = () => queryClient.invalidateQueries({ queryKey: ["todos"] });
-
-  const { isOpen, onOpen, onClose } = useDisclosure();
-  const { isOpen: isDeleteModalOpen, onOpen: onOpenDeleteModal, onClose: onCloseDeleteModal } = useDisclosure();
-  const [isEdit, setIsEdit] = useState(false);
-  const [currentTodo, setCurrentTodo] = useState<Todo | null>(null);
-  const [todoToDelete, setTodoToDelete] = useState<string | null>(null);
-  const [todoTitle, setTodoTitle] = useState('');
-  const [todoDescription, setTodoDescription] = useState('');
-  const [todoDueDate, setTodoDueDate] = useState('');
-
-  const resetTodoForm = () => {
-    setTodoTitle('');
-    setTodoDescription('');
-    setTodoDueDate('');
-    setCurrentTodo(null);
-    setIsEdit(false);
-  };
-
-  const saveTodoMutation = useMutation({
-    mutationFn: (todo: Omit<Todo, "_id" | "createdAt" | "updatedAt">) =>
-      isEdit && currentTodo?._id
-        ? todoService.updateTodo(currentTodo._id, todo)
-        : todoService.createTodo(todo),
-    onSuccess: () => {
-      flashSuccess(isEdit ? "Berhasil memperbarui catatan" : "Berhasil menambahkan catatan");
-      onClose();
-      resetTodoForm();
-      invalidateTodos();
-    },
-    onError: (err: Error) => setError(err.message || "Gagal menyimpan catatan"),
-  });
-
-  const deleteTodoMutation = useMutation({
-    mutationFn: (id: string) => todoService.deleteTodo(id),
-    onSuccess: () => {
-      flashSuccess("Berhasil menghapus catatan");
-      onCloseDeleteModal();
-      setTodoToDelete(null);
-      invalidateTodos();
-    },
-    onError: (err: Error) => setError(err.message || "Gagal menghapus catatan"),
-  });
-
-  const toggleTodoMutation = useMutation({
-    mutationFn: (id: string) => todoService.toggleTodoStatus(id),
-    onSuccess: invalidateTodos,
-    onError: (err: Error) => setError(err.message || "Gagal mengubah status catatan"),
-  });
-
-  const handleAddTodo = () => {
-    resetTodoForm();
-    onOpen();
-  };
-
-  const handleEditTodo = (todo: Todo) => {
-    setCurrentTodo(todo);
-    setTodoTitle(todo.title);
-    setTodoDescription(todo.description || '');
-    setTodoDueDate(todo.dueDate ? new Date(todo.dueDate).toISOString().split('T')[0] : '');
-    setIsEdit(true);
-    onOpen();
-  };
-
-  const handleConfirmDelete = (id: string) => {
-    setTodoToDelete(id);
-    onOpenDeleteModal();
-  };
-
-  const handleSaveTodo = () => {
-    if (!todoTitle) {
-      setError("Judul catatan harus diisi");
-      return;
-    }
-
-    saveTodoMutation.mutate({
-      title: todoTitle,
-      description: todoDescription,
-      dueDate: todoDueDate || undefined,
-      completed: isEdit ? currentTodo?.completed || false : false,
-    });
-  };
-
   // --- notifications --------------------------------------------------------
 
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
@@ -250,12 +159,12 @@ const Dashboard: React.FC = () => {
   };
 
   // navigation happens either way — a failed mark-as-read must not block it
-  const handleNotificationClick = (notification: Notification) => {
+  const handleNotificationClick = (id: string) => {
+    const notification = notifications.find((item) => item._id === id);
+    if (!notification) return;
     if (!notification.isRead) markAsReadMutation.mutate(notification._id);
     router.push(notificationHref(notification));
   };
-
-  const toggleNotificationPopover = () => setIsNotificationOpen((open) => !open);
 
   // --- render helpers -------------------------------------------------------
 
@@ -294,85 +203,23 @@ const Dashboard: React.FC = () => {
     );
   };
 
-  const renderNotifications = () => {
-    if (loadingNotifications) {
-      return (
-        <div className="flex justify-center py-4">
-          <Spinner size="sm" />
-        </div>
-      );
-    }
+  const VISIBLE_NOTIFICATIONS = 3;
 
-    if (notifications.length === 0) {
-      return (
-        <div className="flex flex-col items-center justify-center py-6">
-          <FiCheckCircle className="text-3xl sm:text-4xl text-success mb-2" />
-          <p className="text-gray-500 text-sm sm:text-base">Tidak ada notifikasi</p>
-        </div>
-      );
-    }
-
-    const displayNotifications = notifications.slice(0, 3);
-
-    return (
-      <div>
-        {displayNotifications.map((notification, index) => (
-          <React.Fragment key={notification._id}>
-            <div
-              className={`p-3 sm:p-4 cursor-pointer hover:bg-gray-50 ${!notification.isRead ? 'bg-blue-50' : ''} relative`}
-              onClick={() => handleNotificationClick(notification)}
-            >
-              <div className="flex gap-4">
-                <div className="flex-shrink-0">
-                  {notification.type === 'tugas' ? (
-                    <div className="bg-amber-100 text-amber-600 rounded-full w-11 h-11 flex items-center justify-center">
-                      <FiFileText size={22} />
-                    </div>
-                  ) : (
-                    <div className="bg-blue-100 text-blue-600 rounded-full w-11 h-11 flex items-center justify-center">
-                      <FiBook size={22} />
-                    </div>
-                  )}
-                </div>
-                <div className="flex-1">
-                  <div className="flex justify-between items-start">
-                    <h4 className="font-medium text-sm sm:text-base text-gray-800 line-clamp-1">{notification.title}</h4>
-                    <div className="flex-shrink-0 ml-2 mr-4">
-                      <span className="text-xs text-gray-500 whitespace-nowrap inline-block bg-white px-1.5 py-0.5 rounded-md">
-                        {formatWaktuRelatif(notification.createdAt)}
-                      </span>
-                    </div>
-                  </div>
-                  <p className="text-xs sm:text-sm text-gray-600 mt-0.5 line-clamp-2">{notification.description}</p>
-                  <div className="flex items-center mt-1 gap-2">
-                    <Chip
-                      size="sm"
-                      color={notification.type === 'tugas' ? 'warning' : 'primary'}
-                      className="h-5 text-xs"
-                    >
-                      {notification.type === 'tugas' ? 'Tugas' : 'Materi'}
-                    </Chip>
-                    <span className="text-xs text-gray-500 truncate">
-                      {notification.mataPelajaran?.judul}
-                    </span>
-                  </div>
-                </div>
-                {!notification.isRead && (
-                  <div className="absolute top-4 right-2 w-3 h-3 rounded-full bg-red-500"></div>
-                )}
-              </div>
-            </div>
-            {index < displayNotifications.length - 1 && <Divider />}
-          </React.Fragment>
-        ))}
-        {notifications.length > 3 && (
-          <div className="text-center p-2 text-xs text-gray-500">
-            {notifications.length - 3} notifikasi lainnya
-          </div>
-        )}
-      </div>
-    );
-  };
+  const notificationItems: NotificationBellItem[] = notifications
+    .slice(0, VISIBLE_NOTIFICATIONS)
+    .map((notification) => ({
+      id: notification._id,
+      title: notification.title,
+      description: notification.description,
+      createdAt: notification.createdAt,
+      isRead: notification.isRead,
+      icon: notification.type === 'tugas' ? <FiFileText size={22} /> : <FiBook size={22} />,
+      iconClassName:
+        notification.type === 'tugas' ? "bg-amber-100 text-amber-600" : "bg-blue-100 text-blue-600",
+      badgeLabel: notification.type === 'tugas' ? 'Tugas' : 'Materi',
+      badgeColor: notification.type === 'tugas' ? 'warning' : 'primary',
+      context: notification.mataPelajaran?.judul,
+    }));
 
   if (!session?.user) {
     return null;
@@ -388,57 +235,26 @@ const Dashboard: React.FC = () => {
           />
         </div>
         <div className="flex items-center gap-4 pr-2 md:pr-2">
-          <Popover
-            placement="bottom-end"
-            showArrow={true}
+          <NotificationBell
             isOpen={isNotificationOpen}
             onOpenChange={(open) => {
               setIsNotificationOpen(open);
               if (open) refetchNotifications();
             }}
-          >
-            <PopoverTrigger>
-              <div className="relative inline-block">
-                <Button
-                  isIconOnly
-                  variant="light"
-                  radius="full"
-                  onPress={toggleNotificationPopover}
-                  className="z-10"
-                >
-                  <FiBell size={20} className="text-gray-700" />
-                </Button>
-                {unreadNotifications > 0 && (
-                  <div className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 rounded-full z-20 flex items-center justify-center text-white text-xs font-bold px-1">
-                    {unreadNotifications > 99 ? '99+' : unreadNotifications}
-                  </div>
-                )}
-              </div>
-            </PopoverTrigger>
-            <PopoverContent className="w-[300px] sm:w-[360px] p-0">
-              <div className="p-3 sm:p-4 border-b">
-                <div className="flex items-center justify-center">
-                  <h3 className="font-semibold text-sm sm:text-base">Notifikasi</h3>
+            unreadCount={unreadNotifications}
+            isLoading={loadingNotifications}
+            items={notificationItems}
+            onItemClick={handleNotificationClick}
+            onMarkAllRead={handleMarkAllAsRead}
+            isMarkingAllRead={markAllAsReadMutation.isPending}
+            footer={
+              notifications.length > VISIBLE_NOTIFICATIONS ? (
+                <div className="text-center p-2 text-xs text-gray-500">
+                  {notifications.length - VISIBLE_NOTIFICATIONS} notifikasi lainnya
                 </div>
-                <div className="flex items-center justify-end mt-2">
-                  <Button
-                    size="sm"
-                    variant="light"
-                    color="primary"
-                    onPress={handleMarkAllAsRead}
-                    isLoading={markAllAsReadMutation.isPending}
-                    className="text-xs sm:text-sm"
-                    startContent={<FiCheck size={14} />}
-                  >
-                    Tandai semua dibaca
-                  </Button>
-                </div>
-              </div>
-              <div className="max-h-[280px] overflow-y-auto">
-                {renderNotifications()}
-              </div>
-            </PopoverContent>
-          </Popover>
+              ) : null
+            }
+          />
         </div>
       </div>
 
@@ -524,57 +340,7 @@ const Dashboard: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5 mb-6 md:mb-5">
-            <Card>
-              <CardBody className="p-4 md:p-3">
-                <div className="flex items-center justify-between mb-4 md:mb-3">
-                  <div className="flex items-center">
-                    <FiList size={24} className="text-primary mr-2 md:text-xl" />
-                    <h3 className="text-lg font-semibold md:text-base">Catatan Saya</h3>
-                  </div>
-                  <Button
-                    color="primary"
-                    variant="light"
-                    startContent={<FiPlus className="md:text-sm" />}
-                    onClick={handleAddTodo}
-                    size="sm"
-                    className="md:min-w-0 md:px-3 md:text-xs"
-                  >
-                    <span className="block md:hidden">Tambah Catatan</span>
-                    <span className="hidden md:block">Tambah</span>
-                  </Button>
-                </div>
-
-                {loadingTodos ? (
-                  <div className="flex justify-center py-8 md:py-4">
-                    <Spinner size="sm" />
-                  </div>
-                ) : todos.length === 0 ? (
-                  <p className="text-center text-gray-500 py-4 md:py-2 md:text-sm">
-                    <span className="block md:hidden">Belum ada Catatan yang tersedia. Klik &quot;Tambah Catatan&quot; untuk membuat Note baru.</span>
-                    <span className="hidden md:block">Belum ada Notes. Klik &quot;Tambah&quot; untuk membuat baru.</span>
-                  </p>
-                ) : (
-                  <div className="space-y-3 md:space-y-2">
-                    {todos.map(todo => (
-                      <NoteCard
-                        key={todo._id}
-                        note={{
-                          _id: todo._id,
-                          title: todo.title,
-                          description: todo.description,
-                          dueDate: todo.dueDate,
-                          completed: todo.completed
-                        }}
-                        onToggleStatus={(id) => toggleTodoMutation.mutate(id)}
-                        onEdit={handleEditTodo}
-                        onDelete={handleConfirmDelete}
-                        formatDate={formatTanggal}
-                      />
-                    ))}
-                  </div>
-                )}
-              </CardBody>
-            </Card>
+            <CatatanSaya enabled={enabled} onSuccess={flashSuccess} onError={setError} />
 
             <Card>
               <CardBody className="p-4 md:p-3">
@@ -712,66 +478,6 @@ const Dashboard: React.FC = () => {
         </>
       )}
 
-      <Modal isOpen={isOpen} onClose={onClose}>
-        <ModalContent>
-          <ModalHeader>{isEdit ? 'Edit Catatan' : 'Tambah Catatan Baru'}</ModalHeader>
-          <ModalBody>
-            <Input
-              label="Judul"
-              placeholder="Masukkan judul catatan"
-              value={todoTitle}
-              onValueChange={setTodoTitle}
-              isRequired
-            />
-            <Textarea
-              label="Deskripsi (opsional)"
-              placeholder="Masukkan deskripsi catatan"
-              value={todoDescription}
-              onValueChange={setTodoDescription}
-            />
-            <Input
-              label="Tenggat Waktu (opsional)"
-              placeholder="Pilih tanggal"
-              type="date"
-              value={todoDueDate}
-              onValueChange={setTodoDueDate}
-            />
-          </ModalBody>
-          <ModalFooter>
-            <Button variant="flat" onPress={onClose}>
-              Batal
-            </Button>
-            <Button color="primary" onPress={handleSaveTodo} isLoading={saveTodoMutation.isPending}>
-              Simpan
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
-
-      <Modal isOpen={isDeleteModalOpen} onClose={onCloseDeleteModal}>
-        <ModalContent>
-          <ModalHeader className="flex gap-1">
-            <FiAlertCircle className="text-danger" size={24} />
-            Konfirmasi Hapus
-          </ModalHeader>
-          <ModalBody>
-            <p>Apakah Anda yakin ingin menghapus catatan ini?</p>
-            <p className="text-sm text-gray-500">Tindakan ini tidak dapat dibatalkan.</p>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant="flat" onPress={onCloseDeleteModal}>
-              Batal
-            </Button>
-            <Button
-              color="danger"
-              onPress={() => todoToDelete && deleteTodoMutation.mutate(todoToDelete)}
-              isLoading={deleteTodoMutation.isPending}
-            >
-              Hapus
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
     </PageContainer>
   );
 };
