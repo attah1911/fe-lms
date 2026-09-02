@@ -1,81 +1,36 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import { useSession } from "next-auth/react";
-import { Card, CardBody, CardHeader, CardFooter, Spinner, Button, Chip, Textarea, Divider, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from '@nextui-org/react';
-import { FiArrowLeft, FiDownload, FiCalendar, FiClock, FiUpload, FiFile, FiTrash2, FiCheckCircle, FiXCircle, FiClipboard, FiEdit, FiPlus, FiRefreshCw, FiAward } from 'react-icons/fi';
-import { format, isValid } from 'date-fns';
-import { id as idLocale } from 'date-fns/locale/id';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Card, CardBody, CardFooter, Spinner, Button, Chip, Divider, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from '@nextui-org/react';
+import { FiArrowLeft, FiDownload, FiUpload, FiFile, FiTrash2, FiXCircle, FiClipboard, FiEdit, FiPlus, FiRefreshCw, FiAward } from 'react-icons/fi';
 import { toast } from 'sonner';
 
 import PageContainer from '../../../commons/PageContainer';
-import NotificationAlert from '../../../commons/NotificationAlert/NotificationAlert';
 import { getMataPelajaranById } from '../../../../services/mataPelajaran.service';
-import { getFileExtension, getFileNameFromUrl, downloadFile } from '../../../../utils/fileUtils';
+import AssignmentInfoCards from '@/components/views/Shared/AssignmentInfoCards';
+import { getFileNameFromUrl, downloadFile } from '../../../../utils/fileUtils';
 import { getAssignmentById, submitAssignment, deleteOwnSubmission } from '../../../../services/assignment.service';
 import mediaServices from '../../../../services/media.service';
 import { SessionExtended } from '../../../../types/Auth';
+import { formatTanggalSingkatWaktu, sudahLewat } from "@/utils/date";
 
-const submitAssignmentWithAnswer = async (assignmentId: string, data: {
-  files: Array<{
-    fileUrl: string;
-    fileName: string;
-  }>;
-}) => {
-  try {
-    const response = await submitAssignment(assignmentId, data);
-    return response;
-  } catch (error) {
-    throw error;
-  }
-};
+const MAX_FILES = 5;
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
 const formatFileSize = (bytes: number): string => {
   if (bytes === 0) return '0 Bytes';
-  
+
   const k = 1024;
   const sizes = ['Bytes', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  
+
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-};
-
-const formatDate = (dateString: string): string => {
-  if (!dateString) return 'Tanggal tidak tersedia';
-  
-  const date = new Date(dateString);
-  if (!isValid(date)) return 'Format tanggal tidak valid';
-  
-  try {
-    return format(date, "d MMMM yyyy", { locale: idLocale });
-  } catch (error) {
-    return 'Tanggal tidak valid';
-  }
-};
-
-const formatDateTime = (dateString: string): string => {
-  if (!dateString) return 'Tanggal tidak tersedia';
-  
-  const date = new Date(dateString);
-  if (!isValid(date)) return 'Format tanggal tidak valid';
-  
-  try {
-    return format(date, "d MMMM yyyy, HH:mm", { locale: idLocale });
-  } catch (error) {
-    return 'Tanggal tidak valid';
-  }
 };
 
 interface TugasDetailProps {
   mataPelajaranId: string;
   tugasId: string;
-}
-
-interface Attachment {
-  _id: string;
-  originalName: string;
-  url: string;
-  mimetype: string;
-  size?: number;
 }
 
 interface Submission {
@@ -100,8 +55,8 @@ interface Submission {
     fileUrl: string;
     fileName: string;
   }>;
-  status: 'submitted' | 'graded' | 'reviewed' | 'rejected';
-  score?: number;
+  status: 'submitted' | 'reviewed' | 'rejected';
+  score?: number | null;
   comment?: string;
   feedback?: string;
   submittedAt: string;
@@ -123,7 +78,7 @@ interface Assignment {
   mataPelajaran: string;
   mataPelajaranId?: string;
   materiId?: string;
-  materi?: string;
+  materi?: { _id: string; judul: string };
   submissions?: Submission[];
   createdAt: string;
 }
@@ -133,230 +88,123 @@ interface MataPelajaran {
   judul: string;
 }
 
-interface AssignmentSubmissionPayload {
-  files: Array<{
-    fileUrl: string;
-    fileName: string;
-  }>;
-}
+/** The API mixes `title`/`judul` and `description`/`deskripsi` depending on age of the row. */
+const normalizeAssignment = (assignment: any): Assignment => ({
+  ...assignment,
+  _id: assignment._id || "",
+  judul: assignment.title || assignment.judul || "Tugas Tanpa Judul",
+  deskripsi: assignment.description || assignment.deskripsi || "",
+  deadline: assignment.deadline || new Date().toISOString(),
+  attachments: Array.isArray(assignment.attachments) ? assignment.attachments : [],
+  mataPelajaran: assignment.mataPelajaran || "",
+  mataPelajaranId: assignment.mataPelajaranId || "",
+  materiId: assignment.materiId || "",
+  materi: assignment.materi,
+  submissions: Array.isArray(assignment.submissions) ? assignment.submissions : [],
+  createdAt: assignment.createdAt || new Date().toISOString(),
+});
+
+/** Older rows carry the file under `file`, newer ones flat as `fileUrl`/`fileName`. */
+const withFileFallbacks = (submission: Submission): Submission => ({
+  ...submission,
+  fileUrl: submission.fileUrl || submission.file?.url,
+  fileName: submission.fileName || submission.file?.originalName,
+  additionalFiles: (submission.additionalFiles || []).filter((file) => !!file.fileUrl),
+});
+
+// `score` is `Int?` in the schema, so an ungraded submission arrives as null.
+const isGraded = (submission: Submission) =>
+  submission.score !== null && submission.score !== undefined;
+
+const getStatusColor = (submission: Submission) => {
+  if (isGraded(submission)) return "success";
+  switch (submission.status) {
+    case 'reviewed':
+      return "success";
+    case 'rejected':
+      return "danger";
+    default:
+      return "primary";
+  }
+};
+
+const getStatusText = (submission: Submission) => {
+  if (isGraded(submission)) return "Sudah Dinilai";
+  switch (submission.status) {
+    case 'reviewed':
+      return "Diterima";
+    case 'rejected':
+      return "Ditolak";
+    default:
+      return "Dikumpulkan";
+  }
+};
 
 const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) => {
   const router = useRouter();
   const { data: session } = useSession() as { data: SessionExtended | null };
+  const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [tugas, setTugas] = useState<Assignment | null>(null);
-  const [mataPelajaran, setMataPelajaran] = useState<MataPelajaran | null>(null);
+  const enabled = !!session?.user;
+
+  // separate key from the guru/admin `["assignment", id]`: the backend scopes
+  // the payload per requester, so a murid's copy is a different shape
+  const assignmentKey = ["assignment", "murid", tugasId] as const;
+
+  const { data: mataPelajaran = null } = useQuery({
+    queryKey: ["mataPelajaran", mataPelajaranId],
+    queryFn: async (): Promise<MataPelajaran | null> => {
+      const response = await getMataPelajaranById(mataPelajaranId);
+      return response?.data ? { _id: response.data._id, judul: response.data.judul } : null;
+    },
+    enabled: enabled && !!mataPelajaranId,
+  });
+
+  const {
+    data: tugas = null,
+    isLoading: loading,
+    isFetching,
+    refetch,
+    error: queryError,
+  } = useQuery({
+    queryKey: assignmentKey,
+    queryFn: async (): Promise<Assignment> =>
+      normalizeAssignment((await getAssignmentById(tugasId)).data),
+    enabled: enabled && !!tugasId,
+  });
+
+  if (queryError) {
+    console.error("Error loading assignment:", queryError);
+  }
+
+  const attachmentFiles = (tugas?.attachments || []).map((attachment: any) => ({
+    url: attachment.url,
+    name: attachment.name || attachment.originalName || getFileNameFromUrl(attachment.url),
+  }));
+
+  // the backend already scopes submissions to the requesting murid; this is a
+  // belt-and-braces filter so a scoping regression can't leak someone else's file
+  const isMine = (submission: Submission) => {
+    const student: any = submission.student;
+    if (!student) return false;
+    if (typeof student === 'string') return student === session?.user?.id;
+    return (
+      (!!student.email && student.email === session?.user?.email) ||
+      (!!student._id && !!session?.user?.id && String(student._id) === String(session.user.id))
+    );
+  };
+
+  const mySubmissions = (tugas?.submissions || [])
+    .filter(isMine)
+    .map(withFileFallbacks)
+    .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [mySubmissions, setMySubmissions] = useState<Submission[]>([]);
-  const [attachmentFiles, setAttachmentFiles] = useState<Array<{url: string; name: string}>>([]);
-  const [recentlyUploadedFile, setRecentlyUploadedFile] = useState<string | null>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isReplaceModalOpen, setIsReplaceModalOpen] = useState(false);
   const [submissionToDelete, setSubmissionToDelete] = useState<string | null>(null);
-  const [hasSubmitted, setHasSubmitted] = useState<boolean>(false);
-  const [initialLoadComplete, setInitialLoadComplete] = useState<boolean>(false);
-    
-  const fetchData = useCallback(async () => {
-    if (!tugasId || !mataPelajaranId || !session?.user) return;
-    
-    try {
-      setLoading(true);
-      
-      const mataPelajaranResponse = await getMataPelajaranById(mataPelajaranId);
-      if (mataPelajaranResponse && mataPelajaranResponse.data) {
-        setMataPelajaran({
-          _id: mataPelajaranResponse.data._id,
-          judul: mataPelajaranResponse.data.judul
-        });
-      }
-      
-      const response = await getAssignmentById(tugasId);
-      
-      if (response && response.data) {
-        const assignment = response.data;
-        
-        const normalizedAssignment = {
-          ...assignment,
-          _id: assignment._id || "",
-          judul: assignment.title || assignment.judul || "Tugas Tanpa Judul",
-          deskripsi: assignment.description || assignment.deskripsi || "",
-          deadline: assignment.deadline || new Date().toISOString(),
-          attachments: Array.isArray(assignment.attachments) ? assignment.attachments : [],
-          mataPelajaran: assignment.mataPelajaran || "",
-          mataPelajaranId: assignment.mataPelajaranId || "",
-          materiId: assignment.materiId || "",
-          materi: assignment.materi || "",
-          submissions: Array.isArray(assignment.submissions) ? assignment.submissions : [],
-          createdAt: assignment.createdAt || new Date().toISOString()
-        };
-        
-        setTugas(normalizedAssignment);
-        
-        if (normalizedAssignment.attachments && normalizedAssignment.attachments.length > 0) {
-          const files = normalizedAssignment.attachments.map((attachment: any) => ({
-            url: attachment.url,
-            name: attachment.name || attachment.originalName || getFileNameFromUrl(attachment.url)
-          }));
-          setAttachmentFiles(files);
-        }
-        
-        let foundSubmissions = [];
-        
-        if (normalizedAssignment.submissions && normalizedAssignment.submissions.length > 0) {
-          const userEmail = session.user.email;
-          const userId = session.user.id;
-          
-          const userSubmissions = normalizedAssignment.submissions.filter((sub: Submission) => {
-            if (!sub.student) return false;
-            
-            if (typeof sub.student === 'string') {
-              return sub.student === userId;
-            }
-            
-            const emailMatch = (sub.student as any).email && (sub.student as any).email === userEmail;
-            const idMatch = (sub.student as any)._id && userId && (sub.student as any)._id.toString() === userId.toString();
-            
-            return emailMatch || idMatch;
-          });
-          
-          if (userSubmissions.length > 0) {
-            foundSubmissions = userSubmissions.map((submission: Submission) => {
-              const processedSubmission = { ...submission };
-              
-              if (!processedSubmission.fileUrl && processedSubmission.file && processedSubmission.file.url) {
-                processedSubmission.fileUrl = processedSubmission.file.url;
-                processedSubmission.fileName = processedSubmission.file.originalName;
-              }
-              
-              if (processedSubmission.additionalFiles && processedSubmission.additionalFiles.length > 0) {
-                processedSubmission.additionalFiles = processedSubmission.additionalFiles.filter(file => {
-                  return !!file.fileUrl;
-                });
-              }
-              
-              return processedSubmission;
-            });
-            
-            foundSubmissions = foundSubmissions.sort(
-              (a: Submission, b: Submission) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
-            );
-            
-            if (foundSubmissions.length > 0) {
-              setMySubmissions(foundSubmissions);
-              
-              saveSubmissionToStorage(foundSubmissions[0]);
-              setHasSubmitted(true);
-            }
-          } else {
-            
-            
-            
-            const submissionKey = `submission_${tugasId}_${session?.user?.id}`;
-            const submissionStatus = sessionStorage.getItem(submissionKey) || localStorage.getItem(submissionKey);
-            const submissionData = sessionStorage.getItem(`${submissionKey}_data`) || localStorage.getItem(`${submissionKey}_data`);
-            
-            if (submissionStatus === 'submitted' && submissionData) {
-              try {
-                const parsedData = JSON.parse(submissionData);
-                
-                
-                if (mySubmissions.length === 0 || !initialLoadComplete) {
-                  setMySubmissions([parsedData]);
-                  setHasSubmitted(true);
-                }
-              } catch (e) {
-                console.error('Error parsing cached submission data:', e);
-                if (mySubmissions.length === 0) {
-                  setMySubmissions([]);
-                }
-              }
-            } else if (mySubmissions.length === 0) {
-              setMySubmissions([]);
-            }
-          }
-        } else {
-          
-          
-          if (mySubmissions.length === 0) {
-            const submissionKey = `submission_${tugasId}_${session?.user?.id}`;
-            const submissionStatus = localStorage.getItem(submissionKey);
-            const submissionData = localStorage.getItem(`${submissionKey}_data`);
-            
-            if (submissionStatus === 'submitted' && submissionData) {
-              try {
-                const parsedData = JSON.parse(submissionData);
-                setMySubmissions([parsedData]);
-              } catch (e) {
-                console.error('Error parsing cached submission data:', e);
-                setMySubmissions([]);
-              }
-            } else {
-              setMySubmissions([]);
-            }
-          }
-        }
-      }
-      
-      setInitialLoadComplete(true);
-    } catch (err: any) {
-      console.error("Error loading assignment:", err);
-      toast.error("Gagal memuat tugas", {
-        description: "Terjadi kesalahan saat memuat data tugas."
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [tugasId, mataPelajaranId, session?.user, mySubmissions.length, initialLoadComplete]);
 
-  useEffect(() => {
-    if (tugasId && mataPelajaranId) {
-      fetchData();
-      const submissionKey = `submission_${tugasId}_${session?.user?.id}`;
-      const submissionStatus = localStorage.getItem(submissionKey);
-      const submissionData = localStorage.getItem(`${submissionKey}_data`);
-      setHasSubmitted(submissionStatus === 'submitted');
-      
-      if (submissionStatus === 'submitted' && submissionData) {
-        const loadedFromCache = true;
-        
-        if (loadedFromCache && mySubmissions.length === 0) {
-          try {
-            const parsedData = JSON.parse(submissionData!);
-            setMySubmissions([parsedData]);
-          } catch (e) {
-          }
-        }
-      }
-    }
-  }, [tugasId, mataPelajaranId, session?.user?.id, mySubmissions.length, fetchData]);
-  
-  const saveSubmissionToStorage = (submissionData: Submission) => {
-    if (!tugasId || !session?.user?.id) return;
-    
-    const submissionKey = `submission_${tugasId}_${session.user.id}`;
-    const dataToStore = JSON.stringify(submissionData);
-    
-    localStorage.setItem(submissionKey, 'submitted');
-    localStorage.setItem(`${submissionKey}_data`, dataToStore);
-    
-    sessionStorage.setItem(submissionKey, 'submitted');
-    sessionStorage.setItem(`${submissionKey}_data`, dataToStore);
-  };
-
-  const clearSubmissionFromStorage = () => {
-    if (!tugasId || !session?.user?.id) return;
-    
-    const submissionKey = `submission_${tugasId}_${session.user.id}`;
-    
-    localStorage.removeItem(submissionKey);
-    localStorage.removeItem(`${submissionKey}_data`);
-    sessionStorage.removeItem(submissionKey);
-    sessionStorage.removeItem(`${submissionKey}_data`);
-  };
+  const invalidateAssignment = () => queryClient.invalidateQueries({ queryKey: assignmentKey });
 
   const handleBack = () => {
     router.push(`/murid/matapelajaran/${mataPelajaranId}`);
@@ -365,20 +213,20 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
-    
+
     const filesArray = Array.from(files);
-    
-    if (selectedFiles.length + filesArray.length > 5) {
-      toast.error('Maksimal 5 file yang dapat diunggah');
+
+    if (selectedFiles.length + filesArray.length > MAX_FILES) {
+      toast.error(`Maksimal ${MAX_FILES} file yang dapat diunggah`);
       return;
     }
-    
-    const oversizedFiles = filesArray.filter(file => file.size > 10 * 1024 * 1024);
+
+    const oversizedFiles = filesArray.filter(file => file.size > MAX_FILE_BYTES);
     if (oversizedFiles.length > 0) {
       toast.error(`${oversizedFiles.length} file melebihi ukuran maksimal 10MB`);
       return;
     }
-    
+
     setSelectedFiles(prev => [...prev, ...filesArray]);
   };
 
@@ -395,31 +243,15 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
     }
   };
 
-  const handleSubmit = async () => {
-    if (!tugasId || selectedFiles.length === 0) {
-      toast.error('Pilih setidaknya satu file untuk dikumpulkan');
-      return;
-    }
-    
-    try {
-      setSubmitting(true);
-      
-      
-      const uploadedFiles = [];
-      
-      for (const file of selectedFiles) {
-        
+  const submitMutation = useMutation({
+    mutationFn: async (files: File[]) => {
+      const uploadedFiles: Array<{ fileUrl: string; fileName: string }> = [];
+
+      for (const file of files) {
         try {
           const uploadResponse = await mediaServices.uploadSingle(file);
-          
-          
-          if (uploadResponse && uploadResponse.data && uploadResponse.data.data) {
-            const fileData = {
-              fileUrl: uploadResponse.data.data.url,
-              fileName: file.name
-            };
-            
-            uploadedFiles.push(fileData);
+          if (uploadResponse?.data?.data?.url) {
+            uploadedFiles.push({ fileUrl: uploadResponse.data.data.url, fileName: file.name });
           } else {
             console.error("Upload response missing data structure:", uploadResponse);
             toast.error(`Gagal mengunggah file ${file.name}`);
@@ -429,135 +261,65 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
           toast.error(`Gagal mengunggah file ${file.name}`);
         }
       }
-      
+
       if (uploadedFiles.length === 0) {
-        toast.error('Tidak ada file yang berhasil diunggah');
-        return;
+        throw new Error('Tidak ada file yang berhasil diunggah');
       }
-      
-      const payload: AssignmentSubmissionPayload = {
-        files: uploadedFiles
-      };
-      
-      
-      const submitResponse = await submitAssignmentWithAnswer(tugasId, payload);
-      
-      
+
+      return submitAssignment(tugasId, { files: uploadedFiles });
+    },
+    onSuccess: () => {
       toast.success('Tugas berhasil dikumpulkan');
-      
-      const newSubmission = createNewSubmission(uploadedFiles, submitResponse);
-      
-      setMySubmissions([newSubmission]);
-      setRecentlyUploadedFile(uploadedFiles[0].fileName);
-      
-      saveSubmissionToStorage(newSubmission);
-      
       setSelectedFiles([]);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
-      
-    } catch (err: any) {
+      invalidateAssignment();
+    },
+    onError: (err: Error) => {
       console.error('Error submitting assignment:', err);
       toast.error(err.message || 'Gagal mengumpulkan tugas');
-    } finally {
-      setSubmitting(false);
+    },
+  });
+
+  const handleSubmit = () => {
+    if (!tugasId || selectedFiles.length === 0) {
+      toast.error('Pilih setidaknya satu file untuk dikumpulkan');
+      return;
     }
+    submitMutation.mutate(selectedFiles);
   };
 
-  const createNewSubmission = (uploadedFiles: any[], submitResponse: any): Submission => {
-    let newSubmission: Submission;
-    
-    if (submitResponse?.data?.submission) {
-      
-      newSubmission = submitResponse.data.submission;
-      
-      if (!newSubmission.fileUrl && newSubmission.file && newSubmission.file.url) {
-        newSubmission.fileUrl = newSubmission.file.url;
-        newSubmission.fileName = newSubmission.file.originalName;
-      }
-      
-      if (uploadedFiles.length > 1 && !newSubmission.additionalFiles) {
-        newSubmission.additionalFiles = uploadedFiles.slice(1).map(file => ({
-          fileUrl: file.fileUrl,
-          fileName: file.fileName
-        }));
-      }
-    } else {
-      
-      newSubmission = {
-        _id: `temp_${new Date().getTime()}`,
-        student: {
-          _id: session?.user?.id || "",
-          fullName: session?.user?.name || "",
-          email: session?.user?.email || "",
-          nis: "",
-          kelas: ""
-        },
-        assignment: tugasId || "",
-        answer: "",
-        fileUrl: uploadedFiles[0].fileUrl,
-        fileName: uploadedFiles[0].fileName,
-        status: 'submitted',
-        submittedAt: new Date().toISOString(),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-      
-      if (uploadedFiles.length > 1) {
-        newSubmission.additionalFiles = uploadedFiles.slice(1).map(file => ({
-          fileUrl: file.fileUrl,
-          fileName: file.fileName
-        }));
-      }
-    }
-    
-    return newSubmission;
+  const closeSubmissionModals = () => {
+    setIsDeleteModalOpen(false);
+    setIsReplaceModalOpen(false);
+    setSubmissionToDelete(null);
   };
 
-  const isDeadlinePassed = () => {
-    if (!tugas) return false;
-    const now = new Date();
-    try {
-      const deadline = new Date(tugas.deadline);
-      if (!isValid(deadline)) return false;
-      return now > deadline;
-    } catch (error) {
-      console.error('Error checking deadline:', error);
-      return false;
-    }
-  };
+  // "Hapus" and "Hapus & Ganti" are the same call; only the wording differs
+  const deleteSubmissionMutation = useMutation({
+    mutationFn: ({ submissionId }: { submissionId: string; replacing: boolean }) =>
+      deleteOwnSubmission(tugasId, submissionId),
+    onSuccess: (_data, { replacing }) => {
+      toast.success(
+        replacing
+          ? 'Pengumpulan lama berhasil dihapus. Silakan unggah file baru.'
+          : 'Pengumpulan tugas berhasil dihapus'
+      );
+      closeSubmissionModals();
+      invalidateAssignment();
+    },
+    onError: (err: Error) => {
+      console.error('Error deleting submission:', err);
+      toast.error(err.message || 'Gagal menghapus pengumpulan tugas');
+      closeSubmissionModals();
+    },
+  });
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'graded':
-      case 'reviewed':
-        return "success";
-      case 'rejected':
-        return "danger";
-      case 'submitted':
-      default:
-        return "primary";
-    }
-  };
-  
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'graded':
-        return "Sudah Dinilai";
-      case 'reviewed':
-        return "Diterima";
-      case 'rejected':
-        return "Ditolak";
-      case 'submitted':
-      default:
-        return "Dikumpulkan";
-    }
-  };
-  
+  const isDeadlinePassed = () => (tugas ? sudahLewat(tugas.deadline) : false);
+
   const handleDownloadFile = (file: { url: string; name: string }) => {
     try {
-      
       downloadFile(file.url, file.name);
     } catch (error) {
       console.error('Error downloading file:', error);
@@ -565,82 +327,19 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
     }
   };
 
-  const handleDeleteSubmission = async () => {
-    if (!submissionToDelete || !tugasId) return;
-    
-    try {
-      setDeleting(true);
-      
-      await deleteOwnSubmission(tugasId, submissionToDelete);
-      
-      toast.success('Pengumpulan tugas berhasil dihapus');
-      
-      clearSubmissionFromStorage();
-      setHasSubmitted(false);
-      
-      setMySubmissions([]);
-      setIsDeleteModalOpen(false);
-      setSubmissionToDelete(null);
-    } catch (err: any) {
-      console.error('Error deleting submission:', err);
-      toast.error(err.message || 'Gagal menghapus pengumpulan tugas');
-    } finally {
-      setDeleting(false);
-      setIsDeleteModalOpen(false);
-      setSubmissionToDelete(null);
-    }
-  };
-  
   const openDeleteModal = (submissionId: string) => {
     setSubmissionToDelete(submissionId);
     setIsDeleteModalOpen(true);
   };
-  
+
   const openReplaceModal = (submissionId: string) => {
-    
     setSubmissionToDelete(submissionId);
     setIsReplaceModalOpen(true);
-  };
-  
-  const handleReplaceSubmission = async () => {
-    if (!submissionToDelete || !tugasId) return;
-    
-    try {
-      setDeleting(true);
-      
-      
-      await deleteOwnSubmission(tugasId, submissionToDelete);
-      
-      toast.success('Pengumpulan lama berhasil dihapus. Silakan unggah file baru.');
-      
-      clearSubmissionFromStorage();
-      setHasSubmitted(false);
-      
-      setMySubmissions([]);
-      
-      setIsReplaceModalOpen(false);
-      setSubmissionToDelete(null);
-    } catch (err: any) {
-      console.error('Error replacing submission:', err);
-      toast.error(err.message || 'Gagal mengganti pengumpulan tugas');
-    } finally {
-      setDeleting(false);
-      setIsReplaceModalOpen(false);
-      setSubmissionToDelete(null);
-    }
   };
 
   return (
     <PageContainer className="-mt-20">
-      {error && (
-        <NotificationAlert
-          type="error"
-          message={error}
-          onClose={() => setError(null)}
-        />
-      )}
-
-      <Modal isOpen={isDeleteModalOpen} onClose={() => setIsDeleteModalOpen(false)}>
+      <Modal isOpen={isDeleteModalOpen} onClose={closeSubmissionModals}>
         <ModalContent>
           <ModalHeader>Konfirmasi Hapus Pengumpulan</ModalHeader>
           <ModalBody>
@@ -652,23 +351,26 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
           <ModalFooter>
             <Button
               variant="flat"
-              onPress={() => setIsDeleteModalOpen(false)}
-              disabled={deleting}
+              onPress={closeSubmissionModals}
+              disabled={deleteSubmissionMutation.isPending}
             >
               Batal
             </Button>
             <Button
               color="danger"
-              onPress={handleDeleteSubmission}
-              isLoading={deleting}
+              onPress={() =>
+                submissionToDelete &&
+                deleteSubmissionMutation.mutate({ submissionId: submissionToDelete, replacing: false })
+              }
+              isLoading={deleteSubmissionMutation.isPending}
             >
               Hapus
             </Button>
           </ModalFooter>
         </ModalContent>
       </Modal>
-      
-      <Modal isOpen={isReplaceModalOpen} onClose={() => setIsReplaceModalOpen(false)}>
+
+      <Modal isOpen={isReplaceModalOpen} onClose={closeSubmissionModals}>
         <ModalContent>
           <ModalHeader className="text-primary">Ubah Pengumpulan Tugas</ModalHeader>
           <ModalBody>
@@ -683,17 +385,20 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
           <ModalFooter>
             <Button
               variant="flat"
-              onPress={() => setIsReplaceModalOpen(false)}
-              disabled={deleting}
+              onPress={closeSubmissionModals}
+              disabled={deleteSubmissionMutation.isPending}
             >
               Batal
             </Button>
             <Button
               color="primary"
-              onPress={handleReplaceSubmission}
-              isLoading={deleting}
+              onPress={() =>
+                submissionToDelete &&
+                deleteSubmissionMutation.mutate({ submissionId: submissionToDelete, replacing: true })
+              }
+              isLoading={deleteSubmissionMutation.isPending}
             >
-              Hapus & Ganti
+              Hapus &amp; Ganti
             </Button>
           </ModalFooter>
         </ModalContent>
@@ -710,7 +415,7 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
         >
           Kembali
         </Button>
-        
+
         <div>
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-800">
             {tugas?.judul || 'Detail Tugas'}
@@ -731,86 +436,23 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
         </div>
       ) : tugas ? (
         <div className="grid grid-cols-1 gap-6 mb-6">
-          <Card>
-            <CardBody className="p-4 sm:p-6">
-              <div className="flex items-center gap-2">
-                <FiCalendar size={16} className="text-primary" />
-                <h3 className="text-base sm:text-lg font-semibold">Informasi Tugas</h3>
-              </div>
+          <AssignmentInfoCards
+            title={tugas.judul}
+            description={tugas.deskripsi}
+            deadline={tugas.deadline}
+            materiJudul={tugas.materi?.judul}
+            attachments={attachmentFiles}
+            onDownload={handleDownloadFile}
+            deadlineNotice={
+              isDeadlinePassed() && !mySubmissions.length ? (
+                <p className="mt-2 text-danger text-xs sm:text-sm">
+                  Batas waktu pengumpulan telah berakhir
+                </p>
+              ) : null
+            }
+          />
 
-              <Divider className="my-3 sm:my-4" />
-
-              <div className="space-y-3 sm:space-y-4">
-                <div>
-                  <h4 className="text-xs sm:text-sm text-gray-500">Judul Tugas:</h4>
-                  <p className="font-medium text-sm sm:text-base">{tugas.judul}</p>
-                </div>
-
-                <div>
-                  <h4 className="text-xs sm:text-sm text-gray-500">Deskripsi:</h4>
-                  <p className="whitespace-pre-wrap text-xs sm:text-sm">{tugas.deskripsi}</p>
-                </div>
-
-                <div>
-                  <h4 className="text-xs sm:text-sm text-gray-500">Tenggat Waktu:</h4>
-                  <p className={`font-medium text-sm sm:text-base ${isDeadlinePassed() ? 'text-danger' : ''}`}>
-                    {new Date(tugas.deadline).toLocaleDateString('id-ID', {
-                      weekday: 'long',
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric'
-                    })}{' '}
-                    pukul{' '}
-                    {new Date(tugas.deadline).toLocaleTimeString('id-ID', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      hour12: false,
-                      timeZone: 'Asia/Jakarta'
-                    })}
-                    {' '}WIB
-                  </p>
-                  {isDeadlinePassed() && !mySubmissions.length && (
-                    <p className="mt-2 text-danger text-xs sm:text-sm">Batas waktu pengumpulan telah berakhir</p>
-                  )}
-                </div>
-              </div>
-            </CardBody>
-          </Card>
-          
-          <Card>
-            <CardBody className="p-4 sm:p-6">
-              <div className="flex items-center gap-2">
-                <FiClipboard size={16} className="text-primary" />
-                <h3 className="text-base sm:text-lg font-semibold">File Lampiran</h3>
-              </div>
-
-              <Divider className="my-3 sm:my-4" />
-
-              {attachmentFiles && attachmentFiles.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {attachmentFiles.map((file, index) => (
-                    <Button
-                      key={index}
-                      size="sm"
-                      variant="flat"
-                      color="primary"
-                      startContent={<FiDownload size={14} />}
-                      onPress={() => handleDownloadFile(file)}
-                      className="mb-2 py-1 px-3 h-8 text-xs sm:text-sm"
-                    >
-                      <span className="truncate max-w-[120px] sm:max-w-[200px]">{file.name}</span>
-                    </Button>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center text-gray-500 py-4 text-xs sm:text-sm">
-                  Tidak ada file yang dilampirkan.
-                </div>
-              )}
-            </CardBody>
-          </Card>
-
-          {((mySubmissions && mySubmissions.length > 0) || hasSubmitted) && (
+          {mySubmissions.length > 0 && (
             <Card>
               <CardBody className="p-6">
                 <div className="flex items-center justify-between gap-2">
@@ -818,228 +460,167 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
                     <FiClipboard size={16} className="text-primary" />
                     <h3 className="text-lg font-semibold">Pengumpulan Tugas</h3>
                   </div>
-                  
+
                   <Button
                     size="sm"
                     variant="light"
                     color="primary"
-                    isLoading={loading}
-                    onPress={() => {
-                      setLoading(true);
-                      fetchData();
-                    }}
+                    isLoading={isFetching}
+                    onPress={() => refetch()}
                     startContent={<FiRefreshCw size={14} />}
                     className="min-w-0 h-8 px-2 py-0"
                   >
                     Refresh
                   </Button>
                 </div>
-                
+
                 <Divider className="my-4" />
 
                 <div className="flex flex-col gap-3">
-                  {mySubmissions.length > 0 ? (
-                    mySubmissions.map((submission) => (
-                      <div key={submission._id} className="border rounded-lg shadow-sm overflow-hidden">
-                        <div className="bg-default-50 p-3 border-b">
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <Chip
-                                color={getStatusColor(submission.status)}
-                                variant="flat"
-                                size="sm"
-                              >
-                                {getStatusText(submission.status)}
-                              </Chip>
-                              <span className="text-xs sm:text-sm text-gray-500 mt-1 sm:mt-0">
-                                Dikumpulkan: {new Date(submission.submittedAt || submission.createdAt).toLocaleDateString('id-ID', {
-                                  day: 'numeric',
-                                  month: 'short',
-                                  year: 'numeric',
-                                  hour: '2-digit',
-                                  minute: '2-digit'
-                                })}
-                              </span>
-                            </div>
+                  {mySubmissions.map((submission) => (
+                    <div key={submission._id} className="border rounded-lg shadow-sm overflow-hidden">
+                      <div className="bg-default-50 p-3 border-b">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Chip
+                              color={getStatusColor(submission)}
+                              variant="flat"
+                              size="sm"
+                            >
+                              {getStatusText(submission)}
+                            </Chip>
+                            <span className="text-xs sm:text-sm text-gray-500 mt-1 sm:mt-0">
+                              Dikumpulkan: {formatTanggalSingkatWaktu(submission.submittedAt || submission.createdAt)}
+                            </span>
                           </div>
                         </div>
-                        
-                        <div className="p-4">
-                          <div className="mb-4">
-                            <h4 className="text-sm font-medium mb-2">File Tugas:</h4>
-                            
-                            {process.env.NODE_ENV === 'development' && (
-                              <div className="text-xs text-gray-500 mb-2 border-l-2 border-warning pl-2">
-                                <p>File Name: {submission.fileName || 'Tidak tersedia'}</p>
-                              </div>
-                            )}
-                            
-                            {(submission.fileUrl || (submission.file && submission.file.url)) ? (
-                              <div className="flex items-center p-3 border rounded-md bg-default-50 mb-3">
-                                <FiFile className="text-primary mr-3 flex-shrink-0" size={18} />
-                                <div className="flex-grow mr-4">
-                                  <div className="font-medium text-sm">
-                                    {submission.fileName || submission.file?.originalName || "File Tugas"}
-                                  </div>
-                                </div>
-                                <Button
-                                  size="sm"
-                                  variant="flat"
-                                  color="primary"
-                                  startContent={<FiDownload size={14} />}
-                                  onPress={() => handleDownloadFile({ 
-                                    url: submission.fileUrl || submission.file?.url || "", 
-                                    name: submission.fileName || submission.file?.originalName || "file.pdf" 
-                                  })}
-                                  className="flex-shrink-0"
-                                >
-                                  Download
-                                </Button>
-                              </div>
-                            ) : (
-                              <div className="text-center text-gray-500 py-4 text-sm border rounded-md">
-                                File tidak tersedia
-                              </div>
-                            )}
-                            
-                            {submission.additionalFiles && submission.additionalFiles.length > 0 && (
-                              <div className="mt-4">
-                                <h4 className="text-sm font-medium mb-2">File Tambahan:</h4>
-                                <div className="space-y-2">
-                                  {submission.additionalFiles.map((file, index) => (
-                                    file.fileUrl ? (
-                                      <div key={index} className="flex items-center p-3 border rounded-md bg-default-50">
-                                        <FiFile className="text-primary mr-3 flex-shrink-0" size={18} />
-                                        <div className="flex-grow mr-4">
-                                          <div className="font-medium text-sm">
-                                            {file.fileName || `File Tambahan ${index + 1}`}
-                                          </div>
-                                        </div>
-                                        <Button
-                                          size="sm"
-                                          variant="flat"
-                                          color="primary"
-                                          startContent={<FiDownload size={14} />}
-                                          onPress={() => handleDownloadFile({ 
-                                            url: file.fileUrl, 
-                                            name: file.fileName || `file-${index + 1}.pdf`
-                                          })}
-                                          className="flex-shrink-0"
-                                        >
-                                          Download
-                                        </Button>
-                                      </div>
-                                    ) : null
-                                  ))}
+                      </div>
+
+                      <div className="p-4">
+                        <div className="mb-4">
+                          <h4 className="text-sm font-medium mb-2">File Tugas:</h4>
+
+                          {submission.fileUrl ? (
+                            <div className="flex items-center p-3 border rounded-md bg-default-50 mb-3">
+                              <FiFile className="text-primary mr-3 flex-shrink-0" size={18} />
+                              <div className="flex-grow mr-4">
+                                <div className="font-medium text-sm">
+                                  {submission.fileName || "File Tugas"}
                                 </div>
                               </div>
-                            )}
-                          </div>
-                          
-                          {!isDeadlinePassed() && submission.status === 'submitted' && (
-                            <div className="mt-4 flex flex-wrap gap-2">
                               <Button
-                                color="danger"
+                                size="sm"
                                 variant="flat"
-                                startContent={<FiTrash2 size={16} />}
-                                onPress={() => openDeleteModal(submission._id)}
-                              >
-                                Hapus Pengumpulan
-                              </Button>
-                              
-                              <Button
                                 color="primary"
-                                variant="flat"
-                                startContent={<FiEdit size={16} />}
-                                onPress={() => openReplaceModal(submission._id)}
+                                startContent={<FiDownload size={14} />}
+                                onPress={() => handleDownloadFile({
+                                  url: submission.fileUrl || "",
+                                  name: submission.fileName || "file.pdf"
+                                })}
+                                className="flex-shrink-0"
                               >
-                                Edit Pengumpulan
+                                Download
                               </Button>
+                            </div>
+                          ) : (
+                            <div className="text-center text-gray-500 py-4 text-sm border rounded-md">
+                              File tidak tersedia
+                            </div>
+                          )}
+
+                          {submission.additionalFiles && submission.additionalFiles.length > 0 && (
+                            <div className="mt-4">
+                              <h4 className="text-sm font-medium mb-2">File Tambahan:</h4>
+                              <div className="space-y-2">
+                                {submission.additionalFiles.map((file, index) => (
+                                  <div key={index} className="flex items-center p-3 border rounded-md bg-default-50">
+                                    <FiFile className="text-primary mr-3 flex-shrink-0" size={18} />
+                                    <div className="flex-grow mr-4">
+                                      <div className="font-medium text-sm">
+                                        {file.fileName || `File Tambahan ${index + 1}`}
+                                      </div>
+                                    </div>
+                                    <Button
+                                      size="sm"
+                                      variant="flat"
+                                      color="primary"
+                                      startContent={<FiDownload size={14} />}
+                                      onPress={() => handleDownloadFile({
+                                        url: file.fileUrl,
+                                        name: file.fileName || `file-${index + 1}.pdf`
+                                      })}
+                                      className="flex-shrink-0"
+                                    >
+                                      Download
+                                    </Button>
+                                  </div>
+                                ))}
+                              </div>
                             </div>
                           )}
                         </div>
-                        
-                        {submission.status === 'graded' && submission.score !== undefined && (
-                          <div className="p-4 bg-success-50 border-t">
-                            <div className="flex items-center gap-2 mb-1">
-                              <FiAward className="text-success" size={16} />
-                              <h4 className="text-sm font-medium">Nilai:</h4>
-                            </div>
-                            <p className="text-xl font-semibold">{submission.score}</p>
-                            
-                            {submission.comment && (
-                              <div className="mt-2">
-                                <h5 className="text-xs font-medium text-gray-600">Komentar:</h5>
-                                <p className="text-sm mt-1">{submission.comment}</p>
-                              </div>
-                            )}
+
+                        {!isDeadlinePassed() && submission.status === 'submitted' && (
+                          <div className="mt-4 flex flex-wrap gap-2">
+                            <Button
+                              color="danger"
+                              variant="flat"
+                              startContent={<FiTrash2 size={16} />}
+                              onPress={() => openDeleteModal(submission._id)}
+                            >
+                              Hapus Pengumpulan
+                            </Button>
+
+                            <Button
+                              color="primary"
+                              variant="flat"
+                              startContent={<FiEdit size={16} />}
+                              onPress={() => openReplaceModal(submission._id)}
+                            >
+                              Edit Pengumpulan
+                            </Button>
                           </div>
                         )}
                       </div>
-                    ))
-                  ) : (
-                    <div className="border rounded-lg overflow-hidden">
-                      <div className="bg-primary/5 p-3 border-b">
-                        <div className="flex items-center gap-2">
-                          <Chip color="success" variant="flat" size="sm" className="ml-0">
-                            Dikumpulkan
-                          </Chip>
-                          <span className="text-xs sm:text-sm text-gray-500">
-                            {new Date().toLocaleDateString('id-ID', {
-                              day: 'numeric',
-                              month: 'short',
-                              year: 'numeric'
-                            })}
-                          </span>
-                        </div>
-                      </div>
-                      
-                      <div className="p-4">
-                        <div className="flex items-center gap-4 mb-3">
-                          <FiCheckCircle size={24} className="text-success" />
-                          <div>
-                            <h4 className="text-sm sm:text-base font-medium">File tugas telah dikumpulkan</h4>
-                            <p className="text-xs text-gray-500">Klik tombol &quot;Refresh&quot; untuk melihat detail pengumpulan</p>
+
+                      {isGraded(submission) && (
+                        <div className="p-4 bg-success-50 border-t">
+                          <div className="flex items-center gap-2 mb-1">
+                            <FiAward className="text-success" size={16} />
+                            <h4 className="text-sm font-medium">Nilai:</h4>
                           </div>
+                          <p className="text-xl font-semibold">{submission.score}</p>
+
+                          {(submission.feedback || submission.comment) && (
+                            <div className="mt-2">
+                              <h5 className="text-xs font-medium text-gray-600">Komentar:</h5>
+                              <p className="text-sm mt-1">{submission.feedback || submission.comment}</p>
+                            </div>
+                          )}
                         </div>
-                        
-                        <div className="flex justify-end mt-4">
-                          <Button
-                            color="primary"
-                            size="sm"
-                            variant="solid"
-                            startContent={<FiRefreshCw size={14} />}
-                            onPress={() => {
-                              setLoading(true);
-                              fetchData();
-                            }}
-                          >
-                            Refresh Data
-                          </Button>
-                        </div>
-                      </div>
+                      )}
                     </div>
-                  )}
+                  ))}
                 </div>
               </CardBody>
             </Card>
           )}
-          
-          {!isDeadlinePassed() && !hasSubmitted && (!mySubmissions || mySubmissions.length === 0) && (
+
+          {!isDeadlinePassed() && mySubmissions.length === 0 && (
             <Card>
               <CardBody className="p-4 sm:p-6">
                 <div className="flex items-center gap-2">
                   <FiUpload size={16} className="text-primary" />
                   <h3 className="text-base sm:text-lg font-semibold">Kumpulkan Tugas</h3>
                 </div>
-                
+
                 <Divider className="my-3 sm:my-4" />
-                
+
                 <div className="space-y-3 sm:space-y-4">
                   <div>
                     <div className="flex justify-between items-center mb-2">
-                      <div className="text-xs sm:text-sm font-medium">Lampiran File (Maks. 5 file)</div>
-                      <span className="text-xs text-gray-500">{selectedFiles.length}/5 file</span>
+                      <div className="text-xs sm:text-sm font-medium">Lampiran File (Maks. {MAX_FILES} file)</div>
+                      <span className="text-xs text-gray-500">{selectedFiles.length}/{MAX_FILES} file</span>
                     </div>
                     <input
                       type="file"
@@ -1048,7 +629,7 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
                       className="hidden"
                       multiple
                     />
-                    
+
                     {selectedFiles.length > 0 && (
                       <div className="mb-3 sm:mb-4 space-y-2">
                         {selectedFiles.map((file, index) => (
@@ -1072,8 +653,8 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
                         ))}
                       </div>
                     )}
-                    
-                    {selectedFiles.length < 5 && (
+
+                    {selectedFiles.length < MAX_FILES && (
                       <Button
                         color="primary"
                         variant="flat"
@@ -1084,7 +665,7 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
                         Tambah File
                       </Button>
                     )}
-                    
+
                     <div className="text-xs text-gray-500 mt-2">
                       <p>Format yang didukung: .pdf, .doc, .docx, .xls, .xlsx, .ppt, .pptx, .jpg, .jpeg, .png, .gif, .mp3, .wav, .mp4, .zip, .rar</p>
                       <p>Ukuran maksimum file: 10MB per file</p>
@@ -1096,22 +677,18 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
                 <Button
                   color="default"
                   variant="flat"
-                  isLoading={loading}
-                  onPress={() => {
-                    
-                    setLoading(true);
-                    fetchData();
-                  }}
+                  isLoading={isFetching}
+                  onPress={() => refetch()}
                   className="py-1 h-9 text-xs sm:text-sm px-4"
                 >
                   Refresh Data
                 </Button>
-                
+
                 <Button
                   color="primary"
-                  isLoading={submitting}
+                  isLoading={submitMutation.isPending}
                   onClick={handleSubmit}
-                  disabled={selectedFiles.length === 0 || submitting}
+                  disabled={selectedFiles.length === 0 || submitMutation.isPending}
                   className="py-1 h-9 text-xs sm:text-sm px-4"
                 >
                   Kumpulkan
@@ -1119,8 +696,8 @@ const TugasDetail: React.FC<TugasDetailProps> = ({ mataPelajaranId, tugasId }) =
               </CardFooter>
             </Card>
           )}
-          
-          {isDeadlinePassed() && mySubmissions.length === 0 && !hasSubmitted && (
+
+          {isDeadlinePassed() && mySubmissions.length === 0 && (
             <Card>
               <CardBody className="p-6 text-center">
                 <div className="flex flex-col items-center gap-4 py-4">

@@ -102,10 +102,7 @@ export const getCurrentTeacher = async (): Promise<{ _id: string; fullName: stri
  */
 export const getTeacherProfile = async () => {
   try {
-    const config: CustomRequestConfig = {
-      noRedirect: true
-    };
-    const response = await instance.get(`${endpoint.TEACHERS}/me`, config);
+    const response = await instance.get(`${endpoint.TEACHERS}/me`);
     return response.data;
   } catch (error: any) {
     throw new Error(error.response?.data?.message || "Failed to fetch teacher profile");

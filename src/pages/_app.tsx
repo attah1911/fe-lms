@@ -5,13 +5,13 @@ import { Toaster } from "sonner";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SessionProvider } from "next-auth/react";
 import type { AppProps } from "next/app";
-import { Inter } from "next/font/google";
+import { Plus_Jakarta_Sans } from "next/font/google";
 import SessionCheck from "../components/commons/SessionCheck/SessionCheck";
 import PageLoading from "../components/commons/PageLoading/PageLoading";
 
-const inter = Inter({
+const jakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
-  weight: ["100", "200", "300", "400", "500", "600", "700", "800", "900"],
+  weight: ["400", "500", "600", "700"],
 });
 
 const queryClient = new QueryClient({
@@ -28,7 +28,7 @@ function AppContent({ Component, pageProps }: { Component: AppProps['Component']
   return (
       <NextUIProvider>
         <Toaster richColors position="top-right" />
-      <main className={cn(inter.className)}>
+      <main className={cn(jakarta.className)}>
         <SessionCheck />
         <PageLoading />
         <Component {...pageProps} />

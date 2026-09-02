@@ -73,7 +73,9 @@ export const useLogin = (): UseLoginReturn => {
         const response = await authServices.login(data);
         return response.data;
       } catch (error: any) {
-        if (error.response?.status === 403) {
+        // 401 = wrong credentials, 403 = valid credentials but the account is
+        // not activated yet. Both land here with a message worth showing.
+        if (error.response?.status === 401 || error.response?.status === 403) {
           const message = error.response?.data?.meta?.message;
           if (message === "User tidak ditemukan") {
             throw new Error("Akun tidak ditemukan");

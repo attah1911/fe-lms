@@ -42,13 +42,18 @@ export interface Assignment {
   title: string;
   description: string;
   deadline: string;
-  materiId: {
+  // the backend keeps the foreign keys as plain id strings and exposes the
+  // populated rows separately as `materi` / `mataPelajaran`
+  materiId: string;
+  materi?: {
     _id: string;
     judul: string;
   };
-  mataPelajaranId: {
+  mataPelajaranId: string;
+  mataPelajaran?: {
     _id: string;
     judul: string;
+    kategori?: string;
   };
   isSubmitted: boolean;
   isCompleted?: boolean;
@@ -122,12 +127,9 @@ export const getStudentAssignments = async (params?: PaginationParams) => {
  */
 export const markAssignmentCompletion = async (assignmentId: string, isCompleted: boolean) => {
   try {
-    const config: CustomRequestConfig = {
-      noRedirect: true
-    };
     const response = await instance.put(`${endpoint.STUDENTS}/me/assignments/${assignmentId}/completion`, {
       isCompleted
-    }, config);
+    });
     return response.data;
   } catch (error: any) {
     throw new Error(error.response?.data?.meta?.message || error.message || "Failed to update assignment completion status");
@@ -140,10 +142,7 @@ export const markAssignmentCompletion = async (assignmentId: string, isCompleted
  */
 export const getStudentProfile = async () => {
   try {
-    const config: CustomRequestConfig = {
-      noRedirect: true
-    };
-    const response = await instance.get(`${endpoint.STUDENTS}/me`, config);
+    const response = await instance.get(`${endpoint.STUDENTS}/me`);
     return response.data;
   } catch (error: any) {
     throw new Error(error.response?.data?.message || "Failed to fetch student profile");

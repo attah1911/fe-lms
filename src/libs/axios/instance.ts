@@ -103,21 +103,14 @@ instance.interceptors.response.use(
       error.isAuthError = true;
     }
 
-    if (error.response.status === 403) {
-      const noRedirect = error.config.noRedirect;
-      
-      const skipRedirectEndpoints = ['/students/me', '/teachers/me'];
-      const shouldSkipRedirect = skipRedirectEndpoints.some(endpoint => 
-        error.config.url?.includes(endpoint)
-      );
-      
-      if (!error.config.url?.includes('/auth/login') && !noRedirect && !shouldSkipRedirect) {
-        if (typeof window !== 'undefined') {
-          await signOut({ 
-            redirect: true,
-            callbackUrl: '/auth/login'
-          });
-        }
+    // 401 = the session is gone or invalid, so sign out. 403 = signed in but
+    // not allowed here; that is an ordinary error and must NOT sign anyone out.
+    if (error.response.status === 401 && !error.config.url?.includes('/auth/login')) {
+      if (typeof window !== 'undefined') {
+        await signOut({
+          redirect: true,
+          callbackUrl: '/auth/login'
+        });
       }
     }
 

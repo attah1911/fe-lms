@@ -1,7 +1,8 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useState } from "react";
 import { useSession } from "next-auth/react";
-import { Card, CardBody, Spinner, Button, Checkbox, Input, Textarea, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, useDisclosure, Badge, Chip, Divider, Popover, PopoverTrigger, PopoverContent } from "@nextui-org/react";
-import { FiUsers, FiBook, FiCheckSquare, FiChevronLeft, FiChevronRight, FiList, FiPlus, FiEdit2, FiTrash2, FiClock, FiAlertTriangle, FiBell, FiCheckCircle, FiUserPlus, FiFileText, FiCheck } from "react-icons/fi";
+import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Card, CardBody, Spinner, Button, Input, Textarea, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, useDisclosure, Chip, Divider, Popover, PopoverTrigger, PopoverContent } from "@nextui-org/react";
+import { FiBook, FiChevronLeft, FiChevronRight, FiList, FiPlus, FiAlertTriangle, FiBell, FiCheckCircle, FiUserPlus, FiFileText, FiCheck } from "react-icons/fi";
 import PageContainer from "../../../commons/PageContainer";
 import PageHeader from "../../../commons/PageHeader";
 import NotificationAlert from "../../../commons/NotificationAlert/NotificationAlert";
@@ -16,8 +17,7 @@ import { getGuruMataPelajaran } from "../../../../services/guru.service";
 import { SessionExtended } from "../../../../types/Auth";
 import { useProfile } from "../../../../hooks/useProfile";
 import { useRouter } from "next/router";
-import { format } from "date-fns";
-import { id } from "date-fns/locale";
+import { formatTanggal, formatWaktuRelatif } from "@/utils/date";
 import NoteCard from "../../../commons/NoteCard";
 
 interface Subject {
@@ -32,13 +32,6 @@ interface Subject {
   createdAt: string;
 }
 
-interface PaginationData {
-  total: number;
-  totalPages: number;
-  current: number;
-  limit?: number;
-}
-
 interface GuruStats {
   mataPelajaranCount: number;
   muridCount: number;
@@ -46,49 +39,85 @@ interface GuruStats {
   recentSubjects: Subject[];
 }
 
-interface Notification {
-  _id: string;
-  type: string;
-  title: string;
-  description: string;
-  mataPelajaran: {
-    _id: string;
-    judul: string;
-  };
-  relatedItem?: string;
-  isRead: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface NotificationResponse {
-  data: Notification[];
-  pagination: {
-    total: number;
-    totalPages: number;
-    current: number;
-    limit: number;
-  };
-}
+const PAGE_SIZE = 6;
 
 const Dashboard: React.FC = () => {
   const { data: session } = useSession() as { data: SessionExtended | null };
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [stats, setStats] = useState<GuruStats | null>(null);
-  const { profile } = useProfile();
-  const [searchResults, setSearchResults] = useState<Subject[] | null>(null);
-  const [isSearching, setIsSearching] = useState(false);
   const router = useRouter();
-  const [pagination, setPagination] = useState<PaginationData>({
-    total: 0,
-    totalPages: 0,
-    current: 1
-  });
-  
-  const [todos, setTodos] = useState<Todo[]>([]);
-  const [loadingTodos, setLoadingTodos] = useState(false);
+  const queryClient = useQueryClient();
+  const { profile } = useProfile();
+  const enabled = !!session?.user;
+
+  const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const flashSuccess = (message: string) => {
+    setSuccessMessage(message);
+    setTimeout(() => setSuccessMessage(null), 3000);
+  };
+
+  // --- stats ----------------------------------------------------------------
+
+  const {
+    data: stats,
+    isLoading: loading,
+    error: statsError,
+  } = useQuery({
+    queryKey: ["stats", "guru"],
+    queryFn: async (): Promise<GuruStats> => {
+      try {
+        return await statsService.getGuruStats();
+      } catch (statsErr) {
+        // stats endpoint is optional — fall back to just the subject list
+        console.error("Error fetching guru stats:", statsErr);
+        const response = await getGuruMataPelajaran({ page: 1, limit: PAGE_SIZE });
+        return {
+          mataPelajaranCount: response.pagination?.total || 0,
+          muridCount: 0,
+          materiCount: 0,
+          recentSubjects: response.data || [],
+        };
+      }
+    },
+    enabled,
+  });
+
+  // --- subject search / pagination ------------------------------------------
+
+  // null = not searching, show stats.recentSubjects. The filter object doubles
+  // as the query key, so paging keeps the search term (it used to be dropped).
+  const [subjectFilter, setSubjectFilter] = useState<{ search: string; page: number } | null>(null);
+
+  const { data: subjectPage, isFetching: isSearching } = useQuery({
+    queryKey: ["guruMataPelajaran", subjectFilter],
+    queryFn: () => getGuruMataPelajaran({ ...subjectFilter!, limit: PAGE_SIZE }),
+    enabled: enabled && !!subjectFilter,
+    placeholderData: keepPreviousData,
+  });
+
+  const searchResults: Subject[] | null = subjectFilter ? subjectPage?.data ?? null : null;
+  const pagination = {
+    total: subjectPage?.pagination?.total ?? 0,
+    totalPages: subjectPage?.pagination?.totalPages ?? 0,
+    current: subjectFilter?.page ?? 1,
+  };
+
+  const handleSearch = (searchTerm: string) => setSubjectFilter({ search: searchTerm, page: 1 });
+  const handleViewAll = () => setSubjectFilter({ search: "", page: 1 });
+  const handlePageChange = (newPage: number) => {
+    if (newPage === pagination.current) return;
+    setSubjectFilter((prev) => (prev ? { ...prev, page: newPage } : prev));
+  };
+
+  // --- todos ----------------------------------------------------------------
+
+  const { data: todos = [], isLoading: loadingTodos } = useQuery({
+    queryKey: ["todos"],
+    queryFn: async () => (await todoService.getTodos()).data,
+    enabled,
+  });
+
+  const invalidateTodos = () => queryClient.invalidateQueries({ queryKey: ["todos"] });
+
   const { isOpen, onOpen, onClose } = useDisclosure();
   const { isOpen: isDeleteModalOpen, onOpen: onOpenDeleteModal, onClose: onCloseDeleteModal } = useDisclosure();
   const [isEdit, setIsEdit] = useState(false);
@@ -97,63 +126,6 @@ const Dashboard: React.FC = () => {
   const [todoTitle, setTodoTitle] = useState('');
   const [todoDescription, setTodoDescription] = useState('');
   const [todoDueDate, setTodoDueDate] = useState('');
-  
-  const [notifications, setNotifications] = useState<NotificationType[]>([]);
-  const [loadingNotifications, setLoadingNotifications] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [notificationPage, setNotificationPage] = useState(1);
-  const [notificationHasMore, setNotificationHasMore] = useState(true);
-  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
-  
-  const fetchTodos = async () => {
-    try {
-      setLoadingTodos(true);
-      const response = await todoService.getTodos();
-      setTodos(response.data);
-    } catch (err: any) {
-      setError(err.message || "Failed to fetch todos");
-    } finally {
-      setLoadingTodos(false);
-    }
-  };
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-
-        // todos and notifications are independent — fetch in parallel
-        // (profile comes from useProfile())
-        await Promise.all([fetchTodos(), fetchNotifications(1)]);
-
-        try {
-          const guruStats = await statsService.getGuruStats();
-          setStats(guruStats);
-        } catch (statsErr) {
-          console.error("Error fetching guru stats:", statsErr);
-          const mataPelajaranResponse = await getGuruMataPelajaran({ page: 1, limit: 6 });
-
-          setStats({
-            mataPelajaranCount: mataPelajaranResponse.pagination?.total || 0,
-            muridCount: 0,
-            materiCount: 0,
-            recentSubjects: mataPelajaranResponse.data || []
-          });
-        }
-
-        setError(null);
-      } catch (err: any) {
-        setError(err.message || "Failed to fetch dashboard data");
-        console.error("Dashboard error:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (session?.user) {
-      fetchData();
-    }
-  }, [session]);
 
   const resetTodoForm = () => {
     setTodoTitle('');
@@ -162,6 +134,37 @@ const Dashboard: React.FC = () => {
     setCurrentTodo(null);
     setIsEdit(false);
   };
+
+  const saveTodoMutation = useMutation({
+    mutationFn: (todo: Omit<Todo, "_id" | "createdAt" | "updatedAt">) =>
+      isEdit && currentTodo?._id
+        ? todoService.updateTodo(currentTodo._id, todo)
+        : todoService.createTodo(todo),
+    onSuccess: () => {
+      flashSuccess(isEdit ? "Berhasil memperbarui tugas" : "Berhasil menambahkan tugas");
+      onClose();
+      resetTodoForm();
+      invalidateTodos();
+    },
+    onError: (err: Error) => setError(err.message || "Gagal menyimpan tugas"),
+  });
+
+  const deleteTodoMutation = useMutation({
+    mutationFn: (id: string) => todoService.deleteTodo(id),
+    onSuccess: () => {
+      flashSuccess("Berhasil menghapus tugas");
+      onCloseDeleteModal();
+      setTodoToDelete(null);
+      invalidateTodos();
+    },
+    onError: (err: Error) => setError(err.message || "Gagal menghapus tugas"),
+  });
+
+  const toggleTodoMutation = useMutation({
+    mutationFn: (id: string) => todoService.toggleTodoStatus(id),
+    onSuccess: invalidateTodos,
+    onError: (err: Error) => setError(err.message || "Gagal mengubah status tugas"),
+  });
 
   const handleAddTodo = () => {
     resetTodoForm();
@@ -182,177 +185,87 @@ const Dashboard: React.FC = () => {
     onOpenDeleteModal();
   };
 
-  const handleDeleteTodo = async () => {
-    if (!todoToDelete) return;
-    
-    try {
-      await todoService.deleteTodo(todoToDelete);
-      setSuccessMessage("Berhasil menghapus tugas");
-      fetchTodos();
-      onCloseDeleteModal();
-      setTodoToDelete(null);
-      setTimeout(() => setSuccessMessage(null), 3000);
-    } catch (err: any) {
-      setError(err.message || "Gagal menghapus tugas");
+  const handleSaveTodo = () => {
+    if (!todoTitle) {
+      setError("Judul tugas harus diisi");
+      return;
+    }
+
+    saveTodoMutation.mutate({
+      title: todoTitle,
+      description: todoDescription,
+      dueDate: todoDueDate || undefined,
+      completed: isEdit ? currentTodo?.completed || false : false,
+    });
+  };
+
+  // --- notifications --------------------------------------------------------
+
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  // while the popover is open, poll like the old setInterval did. React Query
+  // already skips the refetch when the tab is in the background.
+  const notificationPoll = isNotificationOpen ? 10000 : false;
+
+  const { data: unreadCount = 0 } = useQuery({
+    queryKey: ["notifications", "unreadCount"],
+    queryFn: notificationService.getUnreadCount,
+    enabled,
+    refetchInterval: notificationPoll,
+  });
+
+  const notificationsQuery = useInfiniteQuery({
+    queryKey: ["notifications", "guru"],
+    queryFn: ({ pageParam }) => notificationService.getTeacherNotifications({ page: pageParam, limit: 5 }),
+    initialPageParam: 1,
+    getNextPageParam: (last) =>
+      last.pagination.current < last.pagination.totalPages ? last.pagination.current + 1 : undefined,
+    enabled,
+    refetchInterval: notificationPoll,
+  });
+
+  const notifications: NotificationType[] = notificationsQuery.data?.pages.flatMap((page) => page.data) ?? [];
+
+  const invalidateNotifications = () => queryClient.invalidateQueries({ queryKey: ["notifications"] });
+
+  const markAsReadMutation = useMutation({
+    mutationFn: (id: string) => notificationService.markAsRead(id),
+    onSuccess: invalidateNotifications,
+    onError: (err) => console.error("Failed to mark notification as read:", err),
+  });
+
+  const markAllAsReadMutation = useMutation({
+    mutationFn: () => notificationService.markAllAsRead(),
+    onSuccess: invalidateNotifications,
+    onError: (err) => console.error("Failed to mark all notifications as read:", err),
+  });
+
+  const handleNotificationClick = (notification: NotificationType) => {
+    if (!notification.isRead) markAsReadMutation.mutate(notification._id);
+
+    if (notification.type === 'submission' && notification.relatedItem) {
+      router.push(`/guru/matapelajaran/${notification.mataPelajaran._id}/tugas/${notification.relatedItem}`);
+    } else if (notification.type === 'enrollment' && notification.mataPelajaran) {
+      router.push(`/guru/matapelajaran/${notification.mataPelajaran._id}`);
+    } else if (notification.type === 'grading_reminder' && notification.relatedItem) {
+      router.push(`/guru/matapelajaran/${notification.mataPelajaran._id}/tugas/${notification.relatedItem}`);
     }
   };
 
-  const handleToggleTodoStatus = async (id: string) => {
-    try {
-      await todoService.toggleTodoStatus(id);
-      fetchTodos();
-    } catch (err: any) {
-      setError(err.message || "Gagal mengubah status tugas");
-    }
-  };
+  const toggleNotificationPopover = () => setIsNotificationOpen((open) => !open);
 
-  const handleSaveTodo = async () => {
-    try {
-      if (!todoTitle) {
-        setError("Judul tugas harus diisi");
-        return;
-      }
-
-      const todoData = {
-        title: todoTitle,
-        description: todoDescription,
-        dueDate: todoDueDate || undefined,
-        completed: isEdit ? currentTodo?.completed || false : false
-      };
-
-      if (isEdit && currentTodo?._id) {
-        await todoService.updateTodo(currentTodo._id, todoData);
-        setSuccessMessage("Berhasil memperbarui tugas");
-      } else {
-        await todoService.createTodo(todoData);
-        setSuccessMessage("Berhasil menambahkan tugas");
-      }
-      
-      onClose();
-      resetTodoForm();
-      fetchTodos();
-      setTimeout(() => setSuccessMessage(null), 3000);
-    } catch (err: any) {
-      setError(err.message || "Gagal menyimpan tugas");
-    }
-  };
-
-  const formatDate = (dateString?: string | Date) => {
-    if (!dateString) return '-';
-    try {
-      return format(new Date(dateString), 'dd MMMM yyyy', { locale: id });
-    } catch (e) {
-      return dateString.toString();
-    }
-  };
-
-  const handleSearch = async (searchTerm: string) => {
-    try {
-      setIsSearching(true);
-      setError(null);
-      const response = await getGuruMataPelajaran({ 
-        search: searchTerm,
-        page: 1,
-        limit: 6 
-      });
-      setSearchResults(response.data);
-      setPagination({
-        total: response.pagination?.total || 0,
-        totalPages: response.pagination?.totalPages || 0,
-        current: 1
-      });
-    } catch (err: any) {
-      setError(err.message || "Failed to search subjects");
-      console.error("Search error:", err);
-    } finally {
-      setIsSearching(false);
-    }
-  };
-
-  const handleViewAll = async () => {
-    try {
-      setIsSearching(true);
-      setError(null);
-      const response = await getGuruMataPelajaran({
-        page: 1,
-        limit: 6
-      });
-      setSearchResults(response.data);
-      setPagination({
-        total: response.pagination?.total || 0,
-        totalPages: response.pagination?.totalPages || 0,
-        current: 1
-      });
-    } catch (err: any) {
-      setError(err.message || "Failed to fetch all subjects");
-      console.error("Fetch all subjects error:", err);
-    } finally {
-      setIsSearching(false);
-    }
-  };
-
-  const handlePageChange = async (newPage: number) => {
-    if (newPage === pagination.current) return;
-
-    try {
-      setIsSearching(true);
-      setError(null);
-      const response = await getGuruMataPelajaran({
-        search: searchResults ? "": "",
-        page: newPage,
-        limit: 6
-      });
-      setSearchResults(response.data);
-      setPagination(prev => ({
-        ...prev,
-        current: newPage
-      }));
-    } catch (err: any) {
-      setError(err.message || "Failed to fetch page data");
-      console.error("Pagination error:", err);
-    } finally {
-      setIsSearching(false);
-    }
-  };
+  // --- render helpers -------------------------------------------------------
 
   const renderSubjects = () => {
-    if (searchResults !== null) {
-      if (searchResults.length === 0) {
-        return (
-          <Card>
-            <CardBody className="py-8">
-              <p className="text-center text-gray-500">
-                Tidak ada mata pelajaran yang sesuai dengan pencarian Anda.
-              </p>
-            </CardBody>
-          </Card>
-        );
-      }
+    const subjects = searchResults ?? stats?.recentSubjects ?? [];
 
-      return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {searchResults.map((subject) => (
-            <SubjectCard
-              key={subject._id}
-              id={subject._id}
-              title={subject.judul}
-              description={subject.deskripsi}
-              category={subject.kategori}
-              teacher={subject.guru?.fullName || 'Unknown'}
-              createdAt={subject.createdAt}
-              viewPath="/guru/matapelajaran"
-            />
-          ))}
-        </div>
-      );
-    }
-
-    if (!stats?.recentSubjects || stats.recentSubjects.length === 0) {
+    if (subjects.length === 0) {
       return (
         <Card>
           <CardBody className="py-8">
             <p className="text-center text-gray-500">
-              Belum ada mata pelajaran yang tersedia.
+              {searchResults
+                ? "Tidak ada mata pelajaran yang sesuai dengan pencarian Anda."
+                : "Belum ada mata pelajaran yang tersedia."}
             </p>
           </CardBody>
         </Card>
@@ -361,7 +274,7 @@ const Dashboard: React.FC = () => {
 
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {stats.recentSubjects.map((subject) => (
+        {subjects.map((subject) => (
           <SubjectCard
             key={subject._id}
             id={subject._id}
@@ -378,29 +291,23 @@ const Dashboard: React.FC = () => {
   };
 
   const renderPagination = () => {
-    if (!searchResults || pagination.total === 0) return null;
+    if (!subjectFilter || pagination.total === 0) return null;
 
     return (
       <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6 mt-4">
         <div className="flex-1 flex flex-col sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm text-gray-700">
-              {pagination.total > 0 ? (
-                <>
-                  Showing{" "}
-                  <span className="font-medium">
-                    {(pagination.current - 1) * 6 + 1}
-                  </span>{" "}
-                  to{" "}
-                  <span className="font-medium">
-                    {Math.min(pagination.current * 6, pagination.total)}
-                  </span>{" "}
-                  of <span className="font-medium">{pagination.total}</span>{" "}
-                  results
-                </>
-              ) : (
-                "No results found"
-              )}
+              Showing{" "}
+              <span className="font-medium">
+                {(pagination.current - 1) * PAGE_SIZE + 1}
+              </span>{" "}
+              to{" "}
+              <span className="font-medium">
+                {Math.min(pagination.current * PAGE_SIZE, pagination.total)}
+              </span>{" "}
+              of <span className="font-medium">{pagination.total}</span>{" "}
+              results
             </p>
           </div>
           <div className="mt-2 sm:mt-0">
@@ -417,14 +324,14 @@ const Dashboard: React.FC = () => {
               >
                 <FiChevronLeft className="h-4 w-4" />
               </Button>
-              
+
               {pagination.totalPages > 0 && [...Array(pagination.totalPages)].map((_, index) => {
                 const pageNum = index + 1;
                 const isFirst = pageNum === 1;
                 const isLast = pageNum === pagination.totalPages;
                 const isCurrent = pageNum === pagination.current;
                 const isNearCurrent = Math.abs(pageNum - pagination.current) <= 1;
-                
+
                 if (isFirst || isLast || isCurrent || isNearCurrent) {
                   return (
                     <Button
@@ -456,7 +363,7 @@ const Dashboard: React.FC = () => {
                 isDisabled={pagination.current >= pagination.totalPages}
                 className={`min-w-8 h-8 ${
                   pagination.current >= pagination.totalPages
-                    ? "opacity-50 cursor-not-allowed" 
+                    ? "opacity-50 cursor-not-allowed"
                     : ""
                 }`}
               >
@@ -469,150 +376,8 @@ const Dashboard: React.FC = () => {
     );
   };
 
-  const fetchNotifications = async (page = 1) => {
-    try {
-      setLoadingNotifications(true);
-      
-      try {
-        const count = await notificationService.getUnreadCount();
-        setUnreadCount(count);
-      } catch (countErr) {
-        console.error("Failed to fetch unread count:", countErr);
-      }
-      
-      try {
-        const response = await notificationService.getTeacherNotifications({ 
-          page, 
-          limit: 5
-        });
-        
-        if (response && Array.isArray(response.data) && response.data.length > 0) {
-          if (page === 1) {
-            setNotifications(response.data);
-          } else {
-            setNotifications(prev => [...prev, ...response.data]);
-          }
-          
-          setNotificationPage(page);
-          setNotificationHasMore(page < (response.pagination?.totalPages || 1));
-        } else {
-          if (page === 1) {
-            try {
-              const unreadNotifs = await notificationService.getUnreadTeacherNotifications();
-              if (unreadNotifs && unreadNotifs.length > 0) {
-                setNotifications(unreadNotifs);
-                setNotificationHasMore(false);
-              } else {
-                setNotifications([]);
-                setNotificationHasMore(false);
-              }
-            } catch (unreadErr) {
-              console.error('Failed to get unread notifications as fallback:', unreadErr);
-              setNotifications([]);
-              setNotificationHasMore(false);
-            }
-          } else {
-            setNotificationHasMore(false);
-          }
-        }
-      } catch (notifErr) {
-        console.error("Failed to fetch notifications:", notifErr);
-        if (page === 1) {
-          setNotifications([]);
-        }
-        setNotificationHasMore(false);
-      }
-    } catch (err) {
-      console.error("Error in fetchNotifications:", err);
-    } finally {
-      setLoadingNotifications(false);
-    }
-  };
-
-  const fetchUnreadCount = async () => {
-    try {
-      const count = await notificationService.getUnreadCount();
-      setUnreadCount(count);
-    } catch (err) {
-      console.error("Failed to fetch unread count:", err);
-    }
-  };
-
-  const handleMarkAsRead = async (id: string) => {
-    try {
-      await notificationService.markAsRead(id);
-      setNotifications(prev => 
-        prev.map(notification => 
-          notification._id === id ? { ...notification, isRead: true } : notification
-        )
-      );
-      fetchUnreadCount();
-    } catch (err) {
-      console.error("Failed to mark notification as read:", err);
-    }
-  };
-
-  const handleMarkAllAsRead = async () => {
-    try {
-      await notificationService.markAllAsRead();
-      setNotifications(prev => 
-        prev.map(notification => ({ ...notification, isRead: true }))
-      );
-      setUnreadCount(0);
-    } catch (err) {
-      console.error("Failed to mark all notifications as read:", err);
-    }
-  };
-
-  const handleLoadMoreNotifications = () => {
-    if (notificationHasMore && !loadingNotifications) {
-      fetchNotifications(notificationPage + 1);
-    }
-  };
-
-  const getNotificationIcon = (type: string) => {
-    switch(type) {
-      case 'submission':
-        return <FiFileText className="text-primary text-lg" />;
-      case 'enrollment':
-        return <FiUserPlus className="text-success text-lg" />;
-      case 'grading_reminder':
-        return <FiAlertTriangle className="text-warning text-lg" />;
-      default:
-        return <FiBell className="text-default-500 text-lg" />;
-    }
-  };
-
-  const getNotificationColor = (type: string) => {
-    switch(type) {
-      case 'submission':
-        return 'primary';
-      case 'enrollment':
-        return 'success';
-      case 'grading_reminder':
-        return 'warning';
-      default:
-        return 'default';
-    }
-  };
-
-  const formatRelativeTime = (dateString: string) => {
-    const date = new Date(dateString);
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    
-    if (date.toDateString() === today.toDateString()) {
-      return 'Hari ini';
-    } else if (date.toDateString() === yesterday.toDateString()) {
-      return 'Kemarin';
-    } else {
-      return format(date, 'd MMMM yyyy', { locale: id });
-    }
-  };
-
   const renderNotifications = () => {
-    if (loadingNotifications) {
+    if (notificationsQuery.isLoading) {
       return (
         <div className="flex justify-center py-4">
           <Spinner size="sm" />
@@ -620,7 +385,7 @@ const Dashboard: React.FC = () => {
       );
     }
 
-    if (!notifications || notifications.length === 0) {
+    if (notifications.length === 0) {
       return (
         <div className="flex flex-col items-center justify-center py-6">
           <FiCheckCircle className="text-3xl sm:text-4xl text-success mb-2" />
@@ -628,12 +393,12 @@ const Dashboard: React.FC = () => {
         </div>
       );
     }
-    
+
     return (
       <div>
         {notifications.map((notification, index) => (
           <React.Fragment key={notification._id || index}>
-            <div 
+            <div
               className={`p-3 sm:p-4 cursor-pointer hover:bg-gray-50 ${!notification.isRead ? 'bg-blue-50' : ''} relative`}
               onClick={() => handleNotificationClick(notification)}
             >
@@ -654,18 +419,18 @@ const Dashboard: React.FC = () => {
                     <h4 className="font-medium text-sm sm:text-base text-gray-800 line-clamp-1">{notification.title}</h4>
                     <div className="flex-shrink-0 ml-2 mr-4">
                       <span className="text-xs text-gray-500 whitespace-nowrap inline-block bg-white px-1.5 py-0.5 rounded-md">
-                        {formatRelativeTime(notification.createdAt)}
+                        {formatWaktuRelatif(notification.createdAt)}
                       </span>
                     </div>
                   </div>
                   <p className="text-xs sm:text-sm text-gray-600 mt-0.5 line-clamp-2">{notification.description}</p>
                   <div className="flex items-center mt-1 gap-2">
-                    <Chip 
-                      size="sm" 
+                    <Chip
+                      size="sm"
                       color={
-                        notification.type === 'submission' ? 'primary' : 
-                        notification.type === 'enrollment' ? 'success' : 
-                        notification.type === 'grading_reminder' ? 'warning' : 
+                        notification.type === 'submission' ? 'primary' :
+                        notification.type === 'enrollment' ? 'success' :
+                        notification.type === 'grading_reminder' ? 'warning' :
                         'default'
                       }
                       className="h-5 text-xs"
@@ -690,15 +455,15 @@ const Dashboard: React.FC = () => {
             {index < notifications.length - 1 && <Divider />}
           </React.Fragment>
         ))}
-        
-        {notificationHasMore && (
+
+        {notificationsQuery.hasNextPage && (
           <div className="p-3 flex justify-center">
-            <Button 
-              size="sm" 
-              variant="flat" 
-              onPress={handleLoadMoreNotifications}
-              isLoading={loadingNotifications}
-              isDisabled={loadingNotifications}
+            <Button
+              size="sm"
+              variant="flat"
+              onPress={() => notificationsQuery.fetchNextPage()}
+              isLoading={notificationsQuery.isFetchingNextPage}
+              isDisabled={notificationsQuery.isFetchingNextPage}
             >
               Muat lebih banyak
             </Button>
@@ -706,37 +471,6 @@ const Dashboard: React.FC = () => {
         )}
       </div>
     );
-  };
-
-  const toggleNotificationPopover = () => {
-    const newState = !isNotificationOpen;
-    setIsNotificationOpen(newState);
-  };
-
-  const handleNotificationClick = async (notification: NotificationType) => {
-    try {
-      if (!notification.isRead) {
-        await notificationService.markAsRead(notification._id);
-        
-        setNotifications(prevNotifications => 
-          prevNotifications.map(n => 
-            n._id === notification._id ? { ...n, isRead: true } : n
-          )
-        );
-        
-        fetchUnreadCount();
-      }
-      
-      if (notification.type === 'submission' && notification.relatedItem) {
-        router.push(`/guru/matapelajaran/${notification.mataPelajaran._id}/tugas/${notification.relatedItem}`);
-      } else if (notification.type === 'enrollment' && notification.mataPelajaran) {
-        router.push(`/guru/matapelajaran/${notification.mataPelajaran._id}`);
-      } else if (notification.type === 'grading_reminder' && notification.relatedItem) {
-        router.push(`/guru/matapelajaran/${notification.mataPelajaran._id}/tugas/${notification.relatedItem}`);
-      }
-    } catch (error) {
-      console.error("Error handling notification click:", error);
-    }
   };
 
   if (!session?.user) {
@@ -747,34 +481,19 @@ const Dashboard: React.FC = () => {
     <PageContainer>
       <div className="flex justify-between items-center mb-6">
         <div className="flex-1">
-          <PageHeader 
-            title="Dashboard Guru" 
-            description="Selamat datang di halaman Dashboard Guru" 
+          <PageHeader
+            title="Dashboard Guru"
+            description="Selamat datang di halaman Dashboard Guru"
           />
         </div>
         <div className="flex items-center gap-4 pr-2">
-          <Popover 
-            placement="bottom-end" 
+          <Popover
+            placement="bottom-end"
             showArrow={true}
             isOpen={isNotificationOpen}
             onOpenChange={(open) => {
               setIsNotificationOpen(open);
-              if (open) {
-                fetchNotifications(1);
-                
-                const intervalId = setInterval(() => {
-                  if (document.visibilityState === 'visible') {
-                    fetchNotifications(1);
-                  }
-                }, 10000);
-                
-                (window as any).notificationRefreshInterval = intervalId;
-              } else {
-                if ((window as any).notificationRefreshInterval) {
-                  clearInterval((window as any).notificationRefreshInterval);
-                  (window as any).notificationRefreshInterval = null;
-                }
-              }
+              if (open) notificationsQuery.refetch();
             }}
           >
             <PopoverTrigger>
@@ -805,7 +524,8 @@ const Dashboard: React.FC = () => {
                     size="sm"
                     variant="light"
                     color="primary"
-                    onPress={handleMarkAllAsRead}
+                    onPress={() => markAllAsReadMutation.mutate()}
+                    isLoading={markAllAsReadMutation.isPending}
                     className="text-xs sm:text-sm"
                     startContent={<FiCheck size={14} />}
                   >
@@ -821,11 +541,11 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {error && (
+      {(error || statsError) && (
         <div className="mb-6">
           <NotificationAlert
             type="error"
-            message={error}
+            message={error ?? (statsError as Error).message}
             onClose={() => setError(null)}
           />
         </div>
@@ -872,9 +592,9 @@ const Dashboard: React.FC = () => {
                     <FiList size={24} className="text-primary mr-2" />
                     <h3 className="text-lg font-semibold">Catatan Saya</h3>
                   </div>
-                  <Button 
-                    color="primary" 
-                    variant="light" 
+                  <Button
+                    color="primary"
+                    variant="light"
                     startContent={<FiPlus />}
                     onClick={handleAddTodo}
                     size="sm"
@@ -882,7 +602,7 @@ const Dashboard: React.FC = () => {
                     Tambah Catatan
                   </Button>
                 </div>
-                
+
                 {loadingTodos ? (
                   <div className="flex justify-center py-8">
                     <Spinner size="sm" />
@@ -903,10 +623,10 @@ const Dashboard: React.FC = () => {
                           dueDate: todo.dueDate,
                           completed: todo.completed
                         }}
-                        onToggleStatus={handleToggleTodoStatus}
+                        onToggleStatus={(id) => toggleTodoMutation.mutate(id)}
                         onEdit={handleEditTodo}
                         onDelete={handleConfirmDelete}
-                        formatDate={formatDate}
+                        formatDate={formatTanggal}
                       />
                     ))}
                   </div>
@@ -946,7 +666,7 @@ const Dashboard: React.FC = () => {
                 <Button variant="flat" onPress={onClose}>
                   Batal
                 </Button>
-                <Button color="primary" onPress={handleSaveTodo}>
+                <Button color="primary" onPress={handleSaveTodo} isLoading={saveTodoMutation.isPending}>
                   Simpan
                 </Button>
               </ModalFooter>
@@ -967,7 +687,11 @@ const Dashboard: React.FC = () => {
                 <Button variant="flat" onPress={onCloseDeleteModal}>
                   Batal
                 </Button>
-                <Button color="danger" onPress={handleDeleteTodo}>
+                <Button
+                  color="danger"
+                  onPress={() => todoToDelete && deleteTodoMutation.mutate(todoToDelete)}
+                  isLoading={deleteTodoMutation.isPending}
+                >
                   Hapus
                 </Button>
               </ModalFooter>
@@ -978,10 +702,10 @@ const Dashboard: React.FC = () => {
             <CardBody>
               <h3 className="text-lg font-semibold mb-3">Cari Mata Pelajaran</h3>
               <SubjectSearch onSearch={handleSearch} />
-              {searchResults !== null && (
+              {subjectFilter && (
                 <div className="mt-2 text-sm">
-                  <button 
-                    onClick={() => setSearchResults(null)} 
+                  <button
+                    onClick={() => setSubjectFilter(null)}
                     className="text-primary hover:underline"
                   >
                     Bersihkan pencarian
@@ -994,16 +718,16 @@ const Dashboard: React.FC = () => {
           <div className="mb-6">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">
-                {searchResults !== null ? "Hasil Pencarian" : "Mata Pelajaran"}
+                {subjectFilter ? "Hasil Pencarian" : "Mata Pelajaran"}
               </h3>
-              <button 
+              <button
                 onClick={handleViewAll}
                 className="text-sm text-primary hover:underline"
               >
                 Lihat Semua
               </button>
             </div>
-            
+
             {isSearching ? (
               <div className="flex justify-center py-12">
                 <Spinner size="lg" color="primary" />
@@ -1011,7 +735,7 @@ const Dashboard: React.FC = () => {
             ) : (
               renderSubjects()
             )}
-            
+
             {renderPagination()}
           </div>
         </>

@@ -2,8 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { Card, CardBody, CardHeader, Spinner, Button, Link, Chip } from '@nextui-org/react';
 import { FiArrowLeft, FiDownload, FiCalendar, FiFileText } from 'react-icons/fi';
-import { format, isValid } from 'date-fns';
-import { id as idLocale } from 'date-fns/locale/id';
+import { formatTanggal } from '@/utils/date';
 
 import PageContainer from '../../../commons/PageContainer';
 import NotificationAlert from '../../../commons/NotificationAlert/NotificationAlert';
@@ -39,20 +38,6 @@ interface MataPelajaran {
   _id: string;
   judul: string;
 }
-
-const formatDate = (dateString: string): string => {
-  if (!dateString) return 'Tanggal tidak tersedia';
-  
-  const date = new Date(dateString);
-  if (!isValid(date)) return 'Format tanggal tidak valid';
-  
-  try {
-    return format(date, "d MMMM yyyy", { locale: idLocale });
-  } catch (error) {
-    console.error('Error formatting date:', error);
-    return 'Tanggal tidak valid';
-  }
-};
 
 const MateriDetail: React.FC<MateriDetailProps> = ({ mataPelajaranId, materiId }) => {
   const router = useRouter();
@@ -194,7 +179,7 @@ const MateriDetail: React.FC<MateriDetailProps> = ({ mataPelajaranId, materiId }
                 <div className="flex items-center gap-2 text-sm text-gray-500">
                 <FiCalendar size={14} />
                   <span>
-                    {formatDate(materi.createdAt)}
+                    {formatTanggal(materi.createdAt)}
                   </span>
               </div>
             </CardHeader>

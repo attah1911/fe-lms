@@ -1,6 +1,7 @@
 import React from "react";
 import { Checkbox, Button, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, useDisclosure } from "@nextui-org/react";
 import { FiEdit2, FiTrash2, FiClock } from "react-icons/fi";
+import { formatTanggal } from "@/utils/date";
 
 export interface Note {
   _id?: string;
@@ -25,7 +26,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
   onToggleStatus,
   onEdit,
   onDelete,
-  formatDate = (date) => new Date(date).toLocaleDateString()
+  formatDate = formatTanggal
 }) => {
   const { isOpen, onOpen, onClose } = useDisclosure();
   

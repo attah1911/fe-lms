@@ -1,13 +1,12 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/router";
-import { useSession } from "next-auth/react";
-import { 
-  Card, 
-  CardBody, 
-  Button, 
-  Chip, 
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  Card,
+  CardBody,
+  Button,
+  Chip,
   Spinner,
-  Progress,
   Table,
   TableHeader,
   TableColumn,
@@ -22,31 +21,21 @@ import {
   ModalHeader,
   ModalBody,
   ModalFooter,
-  Textarea,
-  Link
+  Textarea
 } from "@nextui-org/react";
-import { FiEye, FiCheckCircle, FiSearch, FiDownload, FiSend } from "react-icons/fi";
+import { FiCheckCircle, FiSearch, FiDownload, FiSend } from "react-icons/fi";
 
 import DashboardLayout from "../../../components/layouts/DashboardLayout";
 import PageContainer from "../../../components/commons/PageContainer";
 import PageHeader from "../../../components/commons/PageHeader";
 import NotificationAlert from "../../../components/commons/NotificationAlert/NotificationAlert";
 import { getGuruMataPelajaran } from "../../../services/guru.service";
-import { getMateriByMataPelajaranId } from "../../../services/materiPelajaran.service";
-import { getAssignmentsByMateriId, updateSubmissionStatus, getAssignmentById, updateSubmissionScore } from "../../../services/assignment.service";
+import { getAssignments, updateSubmissionStatus, updateSubmissionScore } from "../../../services/assignment.service";
 import { Assignment, SubmissionStatus } from "../../../types/Assignment";
 import { MataPelajaran } from "../../../types/MataPelajaran";
 import { downloadFile } from "../../../utils/fileUtils";
 import { toast } from "sonner";
-
-interface Materi {
-  _id: string;
-  judul: string;
-}
-
-interface ExtendedMataPelajaran extends MataPelajaran {
-  materiPelajaranList?: Materi[];
-}
+import { formatTanggalWaktu } from "@/utils/date";
 
 interface ExtendedAssignment extends Assignment {
   mataPelajaranTitle?: string;
@@ -64,27 +53,104 @@ interface SubmissionWithUserData {
   studentClass?: string;
   submittedAt: string;
   status: string;
-  score?: number;
+  score?: number | null;
   fileUrl: string;
   fileName: string;
   feedback?: string;
 }
 
+/**
+ * `score` is `Int?` in the schema, so an ungraded submission arrives as
+ * `null` — `score !== undefined` was true for those and labelled every
+ * ungraded row "Sudah Dinilai" with a blank score chip.
+ */
+const isGraded = (submission: SubmissionWithUserData) =>
+  submission.score !== null && submission.score !== undefined;
+
+interface GradingData {
+  mataPelajaranList: MataPelajaran[];
+  assignments: ExtendedAssignment[];
+  assignmentsByMataPelajaran: Record<string, ExtendedAssignment[]>;
+  submissions: SubmissionWithUserData[];
+}
+
+const EMPTY_DATA: GradingData = {
+  mataPelajaranList: [],
+  assignments: [],
+  assignmentsByMataPelajaran: {},
+  submissions: [],
+};
+
+/**
+ * Two requests: the guru's mata pelajaran (for the filter dropdown) and every
+ * assignment they can see, submissions included. The backend scopes the rows and
+ * each one already carries its materi + mata pelajaran.
+ */
+const fetchGradingData = async (): Promise<GradingData> => {
+  const [mataPelajaranResponse, assignmentsResponse] = await Promise.all([
+    getGuruMataPelajaran({ limit: 100 }),
+    getAssignments({ withSubmissions: true }),
+  ]);
+
+  const mataPelajaranList: MataPelajaran[] = mataPelajaranResponse?.data || [];
+
+  const assignments: ExtendedAssignment[] = ((assignmentsResponse?.data || []) as Assignment[]).map(
+    (assignment) => ({
+      ...assignment,
+      mataPelajaranTitle: assignment.mataPelajaran?.judul,
+      materiTitle: assignment.materi?.judul,
+    })
+  );
+
+  const assignmentsByMataPelajaran: Record<string, ExtendedAssignment[]> = {};
+  for (const assignment of assignments) {
+    const key = assignment.mataPelajaranId;
+    assignmentsByMataPelajaran[key] = [...(assignmentsByMataPelajaran[key] || []), assignment];
+  }
+
+  const submissions = assignments
+    .flatMap((assignment) =>
+      (assignment.submissions || []).map((submission: any) => ({
+        _id: submission._id,
+        assignmentId: assignment._id,
+        assignmentTitle: assignment.title,
+        mataPelajaranTitle: assignment.mataPelajaranTitle as string,
+        materiTitle: assignment.materiTitle as string,
+        studentName: submission.student?.fullName || "Siswa",
+        studentNIS: submission.student?.nis || "",
+        studentClass: submission.student?.kelas || "",
+        submittedAt: submission.submittedAt,
+        status: submission.status,
+        score: submission.score,
+        fileUrl: submission.fileUrl,
+        fileName: submission.fileName,
+        feedback: submission.feedback,
+      }))
+    )
+    .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+
+  return { mataPelajaranList, assignments, assignmentsByMataPelajaran, submissions };
+};
+
 const TeacherGradingPage: React.FC = () => {
   const router = useRouter();
   const { assignmentId: queryAssignmentId } = router.query;
-  const { data: session } = useSession();
-  
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [assignments, setAssignments] = useState<ExtendedAssignment[]>([]);
-  const [submissions, setSubmissions] = useState<SubmissionWithUserData[]>([]);
-  const [mataPelajaranList, setMataPelajaranList] = useState<ExtendedMataPelajaran[]>([]);
+  const queryClient = useQueryClient();
+
+  const {
+    data = EMPTY_DATA,
+    isLoading: loading,
+    error: queryError,
+  } = useQuery({
+    queryKey: ["grading", "guru"],
+    queryFn: fetchGradingData,
+  });
+  const { mataPelajaranList, assignments, assignmentsByMataPelajaran, submissions } = data;
+
+  const [errorDismissed, setErrorDismissed] = useState(false);
   const [selectedMataPelajaran, setSelectedMataPelajaran] = useState<string>("all");
   const [selectedAssignment, setSelectedAssignment] = useState<string>("all");
-  const [assignmentsByMataPelajaran, setAssignmentsByMataPelajaran] = useState<{[key: string]: ExtendedAssignment[]}>({});
   const [searchTerm, setSearchTerm] = useState<string>("");
-  const [showError, setShowError] = useState(false);
   const [sortDescriptor, setSortDescriptor] = useState<SortDescriptor>({
     column: "submittedAt",
     direction: "descending",
@@ -93,152 +159,21 @@ const TeacherGradingPage: React.FC = () => {
   const [isGradingModalOpen, setIsGradingModalOpen] = useState(false);
   const [currentSubmission, setCurrentSubmission] = useState<SubmissionWithUserData | null>(null);
   const [feedbackText, setFeedbackText] = useState("");
-  const [scoreValue, setScoreValue] = useState<number | "">(""); 
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [scoreValue, setScoreValue] = useState<number | "">("");
 
-  const fetchData = useCallback(async () => {
-    try {
-      setLoading(true);
-      const response = await getGuruMataPelajaran({ limit: 100 });
-      
-      if (response && response.data && response.data.length > 0) {
-        setMataPelajaranList(response.data);
-        await fetchAssignmentsAndSubmissions(response.data);
-      } else {
-        setLoading(false);
-      }
-    } catch (err: any) {
-      console.error("Error fetching data:", err);
-      setError(err.message || "Failed to load data");
-      setShowError(true);
-      setLoading(false);
-    }
-  }, []);
-
-  const fetchAssignmentsAndSubmissions = async (mataPelajaranData: ExtendedMataPelajaran[]) => {
-    try {
-      let allSubmissions: SubmissionWithUserData[] = [];
-      let allAssignments: ExtendedAssignment[] = [];
-      const assignmentsByMp: {[key: string]: ExtendedAssignment[]} = {};
-      
-      const materiPromises = mataPelajaranData.map(async (mataPelajaran) => {
-        assignmentsByMp[mataPelajaran._id as string] = [];
-        
-        try {
-          const materiResponse = await getMateriByMataPelajaranId(mataPelajaran._id as string);
-          return {
-            mataPelajaran,
-            materi: materiResponse?.data || []
-          };
-        } catch (error) {
-          console.error(`Error fetching materi for mata pelajaran ${mataPelajaran._id}:`, error);
-          return {
-            mataPelajaran,
-            materi: []
-          };
-        }
-      });
-      
-      const materiResults = await Promise.all(materiPromises);
-      
-      const assignmentPromises: Promise<{
-        mataPelajaran: ExtendedMataPelajaran;
-        materi: Materi;
-        assignments: ExtendedAssignment[];
-      }>[] = [];
-      
-      materiResults.forEach(({ mataPelajaran, materi }) => {
-        if (materi.length > 0) {
-          materi.forEach((materiItem: Materi) => {
-            assignmentPromises.push(
-              getAssignmentsByMateriId(materiItem._id).then(response => ({
-                mataPelajaran,
-                materi: materiItem,
-                assignments: response?.data || []
-              })).catch(error => {
-                console.error(`Error fetching assignments for materi ${materiItem._id}:`, error);
-                return {
-                  mataPelajaran,
-                  materi: materiItem,
-                  assignments: []
-                };
-              })
-            );
-          });
-        }
-      });
-      
-      const assignmentResults = await Promise.all(assignmentPromises);
-      
-      assignmentResults.forEach(({ mataPelajaran, materi, assignments }) => {
-        if (assignments.length > 0) {
-          const assignmentsWithContext = assignments.map((assignment: Assignment) => ({
-            ...assignment,
-            mataPelajaranTitle: mataPelajaran.judul,
-            materiTitle: materi.judul,
-          }));
-          
-          allAssignments = [...allAssignments, ...assignmentsWithContext];
-          assignmentsByMp[mataPelajaran._id as string] = [
-            ...assignmentsByMp[mataPelajaran._id as string],
-            ...assignmentsWithContext
-          ];
-          
-          assignments.forEach(assignment => {
-            if (assignment.submissions && assignment.submissions.length > 0) {
-              const submissionsWithContext = assignment.submissions.map((submission: any) => ({
-                _id: submission._id,
-                assignmentId: assignment._id,
-                assignmentTitle: assignment.title,
-                mataPelajaranTitle: mataPelajaran.judul,
-                materiTitle: materi.judul,
-                studentName: submission.student?.fullName || "Siswa",
-                studentNIS: submission.student?.nis || "",
-                studentClass: submission.student?.kelas || "",
-                submittedAt: submission.submittedAt,
-                status: submission.status,
-                score: submission.score,
-                fileUrl: submission.fileUrl,
-                fileName: submission.fileName,
-                feedback: submission.feedback
-              }));
-              
-              allSubmissions = [...allSubmissions, ...submissionsWithContext];
-            }
-          });
-        }
-      });
-      
-      allSubmissions.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
-      
-      setAssignments(allAssignments);
-      setAssignmentsByMataPelajaran(assignmentsByMp);
-      setSubmissions(allSubmissions);
-
-      if (queryAssignmentId) {
-        const targetAssignment = allAssignments.find(a => a._id === queryAssignmentId);
-        if (targetAssignment) {
-          setSelectedAssignment(targetAssignment._id as string);
-          setSelectedMataPelajaran(targetAssignment.mataPelajaranId || "all");
-        }
-      }
-    } catch (err: any) {
-      console.error("Error processing data:", err);
-      setError(err.message || "Failed to process data");
-      setShowError(true);
-    } finally {
-      setLoading(false);
-    }
-  };
-  
+  // deep link from a notification: /guru/penilaian?assignmentId=...
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (!queryAssignmentId) return;
+    const target = assignments.find((assignment) => assignment._id === queryAssignmentId);
+    if (!target) return;
+    setSelectedMataPelajaran(target.mataPelajaranId || "all");
+    setSelectedAssignment(target._id);
+  }, [queryAssignmentId, assignments]);
 
   const handleOpenGradingModal = (submission: SubmissionWithUserData) => {
     setCurrentSubmission(submission);
     setFeedbackText(submission.feedback || "");
-    setScoreValue(submission.score || "");
+    setScoreValue(submission.score ?? "");
     setIsGradingModalOpen(true);
   };
 
@@ -253,7 +188,28 @@ const TeacherGradingPage: React.FC = () => {
     downloadFile(url, fileName);
   };
 
-  const handleSubmitGrading = async () => {
+  const gradingMutation = useMutation({
+    mutationFn: async ({ submission, score }: { submission: SubmissionWithUserData; score: number }) => {
+      await updateSubmissionStatus(
+        submission.assignmentId,
+        submission._id,
+        SubmissionStatus.REVIEWED,
+        feedbackText
+      );
+      await updateSubmissionScore(submission.assignmentId, submission._id, score);
+    },
+    onSuccess: () => {
+      toast.success("Penilaian berhasil disimpan");
+      queryClient.invalidateQueries({ queryKey: ["grading", "guru"] });
+      handleCloseGradingModal();
+    },
+    onError: (error: Error) => {
+      console.error("Error updating submission:", error);
+      toast.error("Gagal menyimpan penilaian: " + (error.message || "Unknown error"));
+    },
+  });
+
+  const handleSubmitGrading = () => {
     if (!currentSubmission) return;
 
     if (currentSubmission.status !== SubmissionStatus.REVIEWED) {
@@ -265,144 +221,90 @@ const TeacherGradingPage: React.FC = () => {
       toast.error("Mohon isi nilai dan umpan balik");
       return;
     }
-    
+
     const score = Number(scoreValue);
     if (isNaN(score) || score < 0 || score > 100) {
       toast.error("Nilai harus berupa angka antara 0-100");
       return;
     }
 
-    try {
-      setIsSubmitting(true);
-
-      await updateSubmissionStatus(
-        currentSubmission.assignmentId,
-        currentSubmission._id,
-        SubmissionStatus.REVIEWED,
-        feedbackText
-      );
-      
-      await updateSubmissionScore(
-        currentSubmission.assignmentId,
-        currentSubmission._id,
-        score
-      );
-      
-      toast.success("Penilaian berhasil disimpan");
-      
-      const updatedSubmissions = submissions.map(sub => {
-        if (sub._id === currentSubmission._id) {
-          return {
-            ...sub,
-            status: SubmissionStatus.REVIEWED,
-            feedback: feedbackText,
-            score: score
-          };
-        }
-        return sub;
-      });
-      
-      setSubmissions(updatedSubmissions);
-      
-      fetchData();
-      
-      handleCloseGradingModal();
-    } catch (error: any) {
-      console.error("Error updating submission:", error);
-      toast.error("Gagal menyimpan penilaian: " + (error.message || "Unknown error"));
-    } finally {
-      setIsSubmitting(false);
-    }
+    gradingMutation.mutate({ submission: currentSubmission, score });
   };
-  
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('id-ID', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  useEffect(() => {
-    setSelectedAssignment("all");
-  }, [selectedMataPelajaran]);
 
   const filteredSubmissions = submissions.filter(submission => {
     if (selectedMataPelajaran !== "all" && submission.mataPelajaranTitle !== mataPelajaranList.find(mp => mp._id === selectedMataPelajaran)?.judul) {
       return false;
     }
-    
+
     if (selectedAssignment !== "all" && submission.assignmentId !== selectedAssignment) {
       return false;
     }
-    
-    if (searchTerm && 
-      !submission.studentName.toLowerCase().includes(searchTerm.toLowerCase()) && 
+
+    if (searchTerm &&
+      !submission.studentName.toLowerCase().includes(searchTerm.toLowerCase()) &&
       !submission.assignmentTitle.toLowerCase().includes(searchTerm.toLowerCase())) {
       return false;
     }
-    
+
     if (submission.status === SubmissionStatus.REJECTED) {
       return false;
     }
-    
+
     return true;
   });
 
   const sortedSubmissions = [...filteredSubmissions].sort((a, b) => {
     const first = a[sortDescriptor.column as keyof SubmissionWithUserData];
     const second = b[sortDescriptor.column as keyof SubmissionWithUserData];
-    
-    if (first === undefined || second === undefined) {
+
+    // an ungraded score is null, not undefined — both sort as "equal"
+    if (first === null || first === undefined || second === null || second === undefined) {
       return 0;
     }
-    
+
     const cmp = first < second ? -1 : first > second ? 1 : 0;
-    
+
     return sortDescriptor.direction === "descending" ? -cmp : cmp;
   });
 
   const columns = [
-    { 
-      key: "assignmentTitle", 
-      label: "JUDUL TUGAS" 
+    {
+      key: "assignmentTitle",
+      label: "JUDUL TUGAS"
     },
-    { 
-      key: "studentName", 
-      label: "NAMA SISWA" 
+    {
+      key: "studentName",
+      label: "NAMA SISWA"
     },
-    { 
-      key: "studentNIS", 
+    {
+      key: "studentNIS",
       label: "NIS"
     },
-    { 
-      key: "studentClass", 
+    {
+      key: "studentClass",
       label: "KELAS"
     },
-    { 
-      key: "mataPelajaranTitle", 
-      label: "MATA PELAJARAN" 
+    {
+      key: "mataPelajaranTitle",
+      label: "MATA PELAJARAN"
     },
-    { 
-      key: "submittedAt", 
+    {
+      key: "submittedAt",
       label: "TANGGAL PENGUMPULAN",
-      render: (item: SubmissionWithUserData) => formatDate(item.submittedAt)
+      render: (item: SubmissionWithUserData) => formatTanggalWaktu(item.submittedAt)
     },
-    { 
-      key: "status", 
+    {
+      key: "status",
       label: "STATUS PENILAIAN",
       render: (item: SubmissionWithUserData) => (
         <div>
-          <Chip 
-            color={item.score !== undefined ? "success" : "warning"}
+          <Chip
+            color={isGraded(item) ? "success" : "warning"}
             size="sm"
           >
-            {item.score !== undefined ? "Sudah Dinilai" : "Belum Dinilai"}
+            {isGraded(item) ? "Sudah Dinilai" : "Belum Dinilai"}
           </Chip>
-          {item.score !== undefined && (
+          {isGraded(item) && (
             <div className="mt-1">
               <Chip color="primary" variant="flat" size="sm">
                 Nilai: {item.score}
@@ -418,19 +320,19 @@ const TeacherGradingPage: React.FC = () => {
       render: (item: SubmissionWithUserData) => (
         <div>
           {item.status === SubmissionStatus.REVIEWED ? (
-            <Button 
-              color="primary" 
-              size="sm" 
+            <Button
+              color="primary"
+              size="sm"
               startContent={<FiCheckCircle />}
               onPress={() => handleOpenGradingModal(item)}
             >
-              {item.score !== undefined ? "Lihat Nilai" : "Beri Nilai"}
+              {isGraded(item) ? "Lihat Nilai" : "Beri Nilai"}
             </Button>
           ) : item.status === SubmissionStatus.SUBMITTED ? (
             <div>
-              <Button 
-                color="warning" 
-                size="sm" 
+              <Button
+                color="warning"
+                size="sm"
                 isDisabled
                 className="opacity-70 mb-1"
               >
@@ -439,9 +341,9 @@ const TeacherGradingPage: React.FC = () => {
               <p className="text-xs text-gray-500">Terima di halaman detail tugas</p>
             </div>
           ) : (
-            <Button 
-              color="danger" 
-              size="sm" 
+            <Button
+              color="danger"
+              size="sm"
               isDisabled
             >
               Ditolak
@@ -459,17 +361,17 @@ const TeacherGradingPage: React.FC = () => {
           title="Penilaian Tugas"
           description="Tugas yang sudah diterima dapat dinilai. Tugas yang ditolak tidak dapat dinilai."
         />
-        
-        {showError && error && (
+
+        {queryError && !errorDismissed && (
           <div className="mb-4">
-            <NotificationAlert 
-              message={error} 
-              type="error" 
-              onClose={() => setShowError(false)} 
+            <NotificationAlert
+              message={(queryError as Error).message}
+              type="error"
+              onClose={() => setErrorDismissed(true)}
             />
           </div>
         )}
-        
+
         <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:flex-wrap">
           <div className="max-w-xs">
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -479,7 +381,10 @@ const TeacherGradingPage: React.FC = () => {
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
               value={selectedMataPelajaran}
               onChange={(e) => {
+                // reset here rather than in an effect on selectedMataPelajaran —
+                // the effect also fired for the deep link and wiped its selection
                 setSelectedMataPelajaran(e.target.value);
+                setSelectedAssignment("all");
               }}
               disabled={loading}
             >
@@ -491,7 +396,7 @@ const TeacherGradingPage: React.FC = () => {
               ))}
             </select>
           </div>
-          
+
           <div className="max-w-xs">
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Judul Tugas
@@ -505,7 +410,7 @@ const TeacherGradingPage: React.FC = () => {
               disabled={loading || selectedMataPelajaran === "all"}
             >
               <option value="all">Semua Tugas</option>
-              {selectedMataPelajaran !== "all" && 
+              {selectedMataPelajaran !== "all" &&
                 (assignmentsByMataPelajaran[selectedMataPelajaran] || []).map((assignment) => (
                   <option key={assignment._id} value={assignment._id}>
                     {assignment.title || ""}
@@ -513,7 +418,7 @@ const TeacherGradingPage: React.FC = () => {
                 ))}
             </select>
           </div>
-          
+
           <div className="w-full md:w-80">
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Cari
@@ -528,7 +433,7 @@ const TeacherGradingPage: React.FC = () => {
             />
           </div>
         </div>
-        
+
         {loading ? (
           <div className="flex justify-center items-center my-12">
             <Spinner size="lg" />
@@ -541,7 +446,7 @@ const TeacherGradingPage: React.FC = () => {
         ) : (
           <Card className="w-full">
             <CardBody>
-              <Table 
+              <Table
                 aria-label="Tabel Penilaian Tugas"
                 sortDescriptor={sortDescriptor}
                 onSortChange={setSortDescriptor}
@@ -552,8 +457,8 @@ const TeacherGradingPage: React.FC = () => {
               >
                 <TableHeader>
                   {columns.map(column => (
-                    <TableColumn 
-                      key={column.key} 
+                    <TableColumn
+                      key={column.key}
                       allowsSorting={column.key !== "actions"}
                       className="text-xs font-semibold"
                     >
@@ -566,7 +471,7 @@ const TeacherGradingPage: React.FC = () => {
                     <TableRow key={item._id}>
                       {columns.map(column => (
                         <TableCell key={`${item._id}-${column.key}`}>
-                          {column.render ? column.render(item) : 
+                          {column.render ? column.render(item) :
                             getKeyValue(item, column.key)}
                         </TableCell>
                       ))}
@@ -577,7 +482,7 @@ const TeacherGradingPage: React.FC = () => {
             </CardBody>
           </Card>
         )}
-        
+
         <Modal
           isOpen={isGradingModalOpen}
           onOpenChange={(isOpen) => {
@@ -593,7 +498,7 @@ const TeacherGradingPage: React.FC = () => {
                     <div>
                       <h3 className="text-xl">{currentSubmission.assignmentTitle}</h3>
                       <p className="text-sm text-gray-500">
-                        Dikumpulkan oleh: {currentSubmission.studentName} • {formatDate(currentSubmission.submittedAt)}
+                        Dikumpulkan oleh: {currentSubmission.studentName} • {formatTanggalWaktu(currentSubmission.submittedAt)}
                       </p>
                       <p className="text-sm text-gray-500 mt-1">
                         NIS: {currentSubmission.studentNIS || "-"} • Kelas: {currentSubmission.studentClass || "-"}
@@ -664,11 +569,11 @@ const TeacherGradingPage: React.FC = () => {
                   <Button color="danger" variant="light" onPress={onClose}>
                     Batal
                   </Button>
-                  <Button 
-                    color="primary" 
+                  <Button
+                    color="primary"
                     startContent={<FiSend />}
                     onPress={handleSubmitGrading}
-                    isLoading={isSubmitting}
+                    isLoading={gradingMutation.isPending}
                   >
                     Simpan Penilaian
                   </Button>
@@ -682,4 +587,4 @@ const TeacherGradingPage: React.FC = () => {
   );
 };
 
-export default TeacherGradingPage; 
+export default TeacherGradingPage;

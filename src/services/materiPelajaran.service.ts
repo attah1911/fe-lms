@@ -35,9 +35,8 @@ export const getMateriPelajaranById = async (id: string) => {
 
 export const getMateriByMataPelajaranId = async (mataPelajaranId: string, params?: PaginationParams) => {
   try {
-    const config: CustomRequestConfig = { 
+    const config: CustomRequestConfig = {
       params: params || {},
-      noRedirect: true
     };
     
     const response = await instance.get(`${endpoint.MATA_PELAJARAN}/${mataPelajaranId}/materi`, config);
@@ -52,10 +51,9 @@ export const createMateriPelajaran = async (mataPelajaranId: string, data: any) 
     const session = await import('next-auth/react').then(mod => mod.getSession());
     
     const config: CustomRequestConfig = {
-      noRedirect: true,
       headers: {
         "Authorization": session?.accessToken ? `Bearer ${session.accessToken}` : ""
-      }
+      },
     };
     
     const requestData = {

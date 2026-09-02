@@ -8,8 +8,7 @@ import PageContainer from '../../../commons/PageContainer';
 import PageHeader from '../../../commons/PageHeader';
 import NotificationAlert from '../../../commons/NotificationAlert/NotificationAlert';
 import { SessionExtended } from '../../../../types/Auth';
-import { format } from 'date-fns';
-import { id } from 'date-fns/locale';
+import { formatTanggal } from '@/utils/date';
 import { getStudentAssignments } from '../../../../services/student.service';
 
 interface Assignment {
@@ -91,15 +90,6 @@ const Tugas: React.FC = () => {
       fetchData();
     }
   }, [session]);
-
-  const formatDate = (dateString?: string | Date) => {
-    if (!dateString) return '-';
-    try {
-      return format(new Date(dateString), 'dd MMMM yyyy', { locale: id });
-    } catch (e) {
-      return dateString.toString();
-    }
-  };
 
   const isDeadlinePassed = (deadline: string) => {
     const deadlineDate = new Date(deadline);
@@ -278,8 +268,8 @@ const Tugas: React.FC = () => {
         <FiCalendar size={14} />
         <span>
           {isPassed 
-            ? `Deadline telah lewat (${formatDate(deadline)})` 
-            : `${remainingDays} hari lagi (${formatDate(deadline)})`}
+            ? `Deadline telah lewat (${formatTanggal(deadline)})` 
+            : `${remainingDays} hari lagi (${formatTanggal(deadline)})`}
         </span>
       </div>
     );

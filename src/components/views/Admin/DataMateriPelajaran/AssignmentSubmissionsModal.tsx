@@ -22,6 +22,7 @@ import { getAssignmentById, updateSubmissionStatus } from "../../../../services/
 import { FiDownload, FiCheck, FiX } from "react-icons/fi";
 import { downloadFile } from "../../../../utils/fileUtils";
 import NotificationAlert from "../../../commons/NotificationAlert/NotificationAlert";
+import { formatTanggalHari, formatTanggalSingkatWaktu } from "@/utils/date";
 
 interface AssignmentSubmissionsModalProps {
   isOpen: boolean;
@@ -151,12 +152,7 @@ const AssignmentSubmissionsModal: React.FC<AssignmentSubmissionsModalProps> = ({
               </h3>
               {assignment && (
                 <p className="text-sm text-gray-500">
-                  Tenggat: {new Date(assignment.deadline).toLocaleDateString('id-ID', {
-                    weekday: 'long',
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric'
-                  })}
+                  Tenggat: {formatTanggalHari(assignment.deadline)}
                 </p>
               )}
             </ModalHeader>
@@ -207,13 +203,7 @@ const AssignmentSubmissionsModal: React.FC<AssignmentSubmissionsModalProps> = ({
                           </Button>
                         </TableCell>
                         <TableCell>
-                          {new Date(submission.submittedAt).toLocaleDateString('id-ID', {
-                            day: 'numeric',
-                            month: 'short',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
+                          {formatTanggalSingkatWaktu(submission.submittedAt)}
                         </TableCell>
                         <TableCell>
                           <Chip 

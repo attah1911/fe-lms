@@ -8,13 +8,12 @@ import PageContainer from '../../../commons/PageContainer';
 import NotificationAlert from '../../../commons/NotificationAlert/NotificationAlert';
 import { getMataPelajaranById, enrollStudent, selfEnrollStudent } from '../../../../services/mataPelajaran.service';
 import { getMateriByMataPelajaranId } from '../../../../services/materiPelajaran.service';
-import { getAssignmentsByMateriId } from '../../../../services/assignment.service';
+import { getAssignments } from '../../../../services/assignment.service';
 import { getFileNameFromUrl, downloadFile } from "@/utils/fileUtils";
-import { format, isValid } from 'date-fns';
-import { id as idLocale } from 'date-fns/locale/id';
 import { toast } from "sonner";
 import { getEnrolledMataPelajaran } from '../../../../services/student.service';
 import { SessionExtended } from '../../../../types/Auth';
+import { formatTanggal } from "@/utils/date";
 
 interface MataPelajaranDetailProps {
   id: string;
@@ -60,20 +59,6 @@ interface MataPelajaran {
   };
   createdAt: string;
 }
-
-const formatDate = (dateString: string): string => {
-  if (!dateString) return 'Tanggal tidak tersedia';
-  
-  try {
-    const date = new Date(dateString);
-    if (!isValid(date)) return 'Format tanggal tidak valid';
-    
-    return format(date, "d MMMM yyyy", { locale: idLocale });
-  } catch (error) {
-    console.error('Error formatting date:', error);
-    return 'Tanggal tidak valid';
-  }
-};
 
 const MataPelajaranDetail: React.FC<MataPelajaranDetailProps> = ({ id }) => {
   const router = useRouter();
@@ -146,25 +131,23 @@ const MataPelajaranDetail: React.FC<MataPelajaranDetailProps> = ({ id }) => {
   }, [id]);
   
   const fetchAssignments = useCallback(async () => {
-    if (!id || materiList.length === 0) return;
+    if (!id) return;
     
     try {
       setLoadingAssignments(true);
-      const firstMateriId = materiList[0]._id;
-      const response = await getAssignmentsByMateriId(firstMateriId);
-      setAssignments(response.data);
+      setAssignments((await getAssignments({ mataPelajaranId: id as string }))?.data || []);
     } catch (err: any) {
       console.error("Error fetching assignments:", err);
     } finally {
       setLoadingAssignments(false);
     }
-  }, [id, materiList]);
+  }, [id]);
   
   useEffect(() => {
-    if (isEnrolled && activeTab === 'tugas' && materiList.length > 0 && assignments.length === 0) {
+    if (isEnrolled && activeTab === 'tugas' && assignments.length === 0) {
       fetchAssignments();
     }
-  }, [activeTab, materiList.length, id, isEnrolled, assignments.length, fetchAssignments]);
+  }, [activeTab, id, isEnrolled, assignments.length, fetchAssignments]);
   
   const handleBack = () => {
     router.push('/murid/dashboard');
@@ -175,10 +158,7 @@ const MataPelajaranDetail: React.FC<MataPelajaranDetailProps> = ({ id }) => {
     
     const tabKey = key.toString();
     setActiveTab(tabKey);
-    
-    if (tabKey === 'tugas' && assignments.length === 0 && materiList.length > 0) {
-      fetchAssignments();
-    }
+    // the effect above starts the fetch — calling it here too double-fetched
   };
   
   const handleEnrollment = async () => {
@@ -378,9 +358,7 @@ const MataPelajaranDetail: React.FC<MataPelajaranDetailProps> = ({ id }) => {
                     <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-2">
                       <div className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded flex items-center">
                         <FiCalendar size={12} className="mr-1" />
-                        Tenggat: {new Date(assignment.deadline).toLocaleDateString('id-ID', { 
-                          day: 'numeric', month: 'long', year: 'numeric' 
-                        })} {new Date(assignment.deadline).toLocaleTimeString('id-ID', {
+                        Tenggat: {formatTanggal(assignment.deadline)} {new Date(assignment.deadline).toLocaleTimeString('id-ID', {
                           hour: '2-digit', minute: '2-digit'
                         })}
                       </div>
@@ -439,24 +417,6 @@ const MataPelajaranDetail: React.FC<MataPelajaranDetailProps> = ({ id }) => {
               <h3 className="text-sm text-gray-500 mb-1">Deskripsi:</h3>
               <p className="text-sm">{mataPelajaran.deskripsi}</p>
             </div>
-            
-            {!isEnrolled && (
-              <>
-                <Divider className="my-2" />
-                <div className="pt-2">
-                  <Button
-                    color="primary"
-                    variant="solid"
-                    startContent={<FiUserPlus size={16} />}
-                    className="w-full"
-                    isLoading={isEnrolling}
-                    onClick={handleEnrollment}
-                  >
-                    Daftar Mata Pelajaran
-                  </Button>
-                </div>
-              </>
-            )}
           </div>
         </CardBody>
       </Card>
@@ -477,7 +437,7 @@ const MataPelajaranDetail: React.FC<MataPelajaranDetailProps> = ({ id }) => {
               Anda belum terdaftar pada mata pelajaran ini
             </h2>
             <p className="text-gray-600 mb-6">
-              Untuk melihat materi dan tugas dari mata pelajaran ini, Anda perlu mendaftar terlebih dahulu.
+              Untuk melihat materi dan tugas dari mata pelajaran ini, Anda perlu enroll terlebih dahulu.
             </p>
             <Button
               color="primary"
@@ -486,7 +446,7 @@ const MataPelajaranDetail: React.FC<MataPelajaranDetailProps> = ({ id }) => {
               isLoading={isEnrolling}
               onClick={handleEnrollment}
             >
-              Daftar Sekarang
+              Enroll Sekarang
             </Button>
           </div>
         </CardBody>

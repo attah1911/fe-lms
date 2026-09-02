@@ -7,7 +7,12 @@ export interface Assignment {
   deadline: string;
   materiId: string;
   mataPelajaranId: string;
-  submissions: AssignmentSubmission[];
+  materi?: { _id: string; judul: string };
+  mataPelajaran?: { _id: string; judul: string };
+  /** absent on list responses (`GET /assignments` without `withSubmissions`) */
+  submissions?: AssignmentSubmission[];
+  /** list responses (`GET /assignments`) send a count instead of the rows */
+  _count?: { submissions: number };
   attachments?: Array<{url: string; name: string}>;
   createdAt: string;
   updatedAt: string;

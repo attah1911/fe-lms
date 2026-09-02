@@ -1,4 +1,5 @@
 import React from "react";
+import { formatTanggal } from "@/utils/date";
 
 interface ProfileFieldProps {
   label: string;
@@ -39,11 +40,7 @@ const ProfileField: React.FC<ProfileFieldProps> = ({
       ) : (
         <p className="text-gray-900 py-2">
           {type === 'date' 
-            ? new Date(value).toLocaleDateString('id-ID', {
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric'
-              })
+            ? formatTanggal(value)
             : value}
         </p>
       )}

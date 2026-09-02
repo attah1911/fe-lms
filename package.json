@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start -p 3001",
     "lint": "next lint",
+    "typecheck": "tsc --noEmit --incremental false",
     "clean": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\""
   },
   "dependencies": {
@@ -15,7 +16,6 @@
     "@tanstack/react-query": "^5.51.11",
     "axios": "^1.7.2",
     "clsx": "^2.1.1",
-    "date-fns": "^4.1.0",
     "framer-motion": "^11.3.8",
     "next": "^14.2.35",
     "next-auth": "^4.24.7",

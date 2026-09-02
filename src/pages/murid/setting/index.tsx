@@ -1,14 +1,7 @@
-import React from 'react';
-import { NextPage } from 'next';
-import DashboardLayout from '../../../components/layouts/DashboardLayout';
-import Setting from '../../../components/views/Murid/Setting';
+import React from "react";
+import { NextPage } from "next";
+import SettingPage from "@/components/views/Shared/SettingPage";
 
-const SettingPage: NextPage = () => {
-  return (
-    <DashboardLayout type="murid">
-      <Setting />
-    </DashboardLayout>
-  );
-};
+const RoleSettingPage: NextPage = () => <SettingPage role="murid" />;
 
-export default SettingPage;
+export default RoleSettingPage;

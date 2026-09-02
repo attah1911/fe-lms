@@ -8,7 +8,9 @@ import {
   Button, 
   Input, 
   Textarea,
-  Divider
+  Divider,
+  Select,
+  SelectItem
 } from "@nextui-org/react";
 import { useForm, Controller } from "react-hook-form";
 import { CreateAssignmentInput } from "../../../../types/Assignment";
@@ -20,7 +22,7 @@ interface AssignmentModalProps {
   onClose: () => void;
   onSubmit: (data: CreateAssignmentInput) => Promise<void>;
   isSubmitting: boolean;
-  materiId: string;
+  materiList: Array<{ _id: string; judul: string }>;
   mataPelajaranId: string;
   initialData?: Partial<CreateAssignmentInput>;
   mode: 'create' | 'edit';
@@ -31,11 +33,12 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
   onClose,
   onSubmit,
   isSubmitting,
-  materiId,
+  materiList,
   mataPelajaranId,
   initialData,
   mode
 }) => {
+  const defaultMateriId = initialData?.materiId || materiList[0]?._id || '';
   const [error, setError] = useState<string | null>(null);
   const [attachmentFiles, setAttachmentFiles] = useState<Array<{url: string; name: string}>>([]);
   
@@ -44,7 +47,7 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
       title: initialData?.title || '',
       description: initialData?.description || '',
       deadline: initialData?.deadline ? new Date(initialData.deadline).toISOString().split('T')[0] : '',
-      materiId: materiId,
+      materiId: defaultMateriId,
       mataPelajaranId: mataPelajaranId
     }
   });
@@ -55,7 +58,7 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
         title: initialData?.title || '',
         description: initialData?.description || '',
         deadline: initialData?.deadline ? new Date(initialData.deadline).toISOString().split('T')[0] : '',
-        materiId: materiId,
+        materiId: defaultMateriId,
         mataPelajaranId: mataPelajaranId
       });
 
@@ -65,7 +68,7 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
         setAttachmentFiles([]);
       }
     }
-  }, [isOpen, initialData, reset, materiId, mataPelajaranId]);
+  }, [isOpen, initialData, reset, defaultMateriId, mataPelajaranId]);
 
   const handleFormSubmit = async (data: CreateAssignmentInput) => {
     try {
@@ -181,7 +184,29 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
                   )}
                 />
                 
-                <input type="hidden" {...control.register("materiId")} value={materiId} />
+                <Controller
+                  name="materiId"
+                  control={control}
+                  rules={{ required: "Materi harus dipilih" }}
+                  render={({ field: { onChange, value }, fieldState }) => (
+                    <Select
+                      label="Materi"
+                      variant="bordered"
+                      placeholder="Pilih materi"
+                      errorMessage={fieldState.error?.message}
+                      isInvalid={!!fieldState.error}
+                      selectedKeys={value ? new Set([value]) : new Set<string>()}
+                      onChange={(e) => onChange(e.target.value)}
+                    >
+                      {materiList.map((materi) => (
+                        <SelectItem key={materi._id} value={materi._id}>
+                          {materi.judul}
+                        </SelectItem>
+                      ))}
+                    </Select>
+                  )}
+                />
+
                 <input type="hidden" {...control.register("mataPelajaranId")} value={mataPelajaranId} />
               </form>
 

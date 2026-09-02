@@ -1,8 +1,7 @@
 import React from "react";
 import { Card, CardBody, CardFooter, Chip, Button } from "@nextui-org/react";
 import { useRouter } from "next/router";
-import { format } from "date-fns";
-import { id as idLocale } from "date-fns/locale/id";
+import { formatTanggal } from "@/utils/date";
 import { FiExternalLink, FiCheck } from "react-icons/fi";
 
 interface SubjectCardProps {
@@ -32,7 +31,7 @@ const SubjectCard: React.FC<SubjectCardProps> = ({
     ? `${description.substring(0, 100)}...` 
     : description;
   
-  const formattedDate = format(new Date(createdAt), "d MMMM yyyy", { locale: idLocale });
+  const formattedDate = formatTanggal(createdAt);
   
   const handleClick = () => {
     router.push(`${viewPath}/${id}`);

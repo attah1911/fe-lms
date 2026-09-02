@@ -166,10 +166,18 @@ export default function Home() {
         </nav>
 
         {/* Hero Section */}
-        <section className="container mx-auto px-4 py-8 sm:py-10 md:px-6 md:py-12 lg:px-10 lg:py-16 xl:px-16 max-w-7xl">
+        <section className="relative isolate overflow-hidden container mx-auto px-4 py-8 sm:py-10 md:px-6 md:py-12 lg:px-10 lg:py-16 xl:px-16 max-w-7xl">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -z-10 -top-40 right-[-15%] h-[34rem] w-[34rem] rounded-full bg-gradient-radial from-blue-300/40 via-blue-200/15 to-transparent blur-3xl"
+          />
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -z-10 inset-0 opacity-[0.18] bg-[radial-gradient(#93c5fd_1px,transparent_1px)] [background-size:22px_22px] [mask-image:radial-gradient(70%_55%_at_50%_0%,black,transparent)]"
+          />
           <div className="flex flex-col-reverse items-center justify-between gap-6 sm:gap-8 md:flex-row">
             <div className="flex w-full flex-col items-center text-center md:items-start md:text-left md:w-1/2 space-y-4 sm:space-y-6">
-              <h1 className="text-3xl sm:text-4xl font-bold text-gray-800 md:text-5xl lg:text-6xl">
+              <h1 className="text-3xl sm:text-4xl font-bold tracking-tight leading-[1.05] text-balance text-gray-800 md:text-5xl lg:text-6xl">
                 Belajar Lebih Mudah dengan <span className="text-blue-500">E-Learning</span>
               </h1>
               <p className="text-base sm:text-lg text-gray-600 max-w-xl">
@@ -179,7 +187,7 @@ export default function Home() {
               <div className="flex flex-wrap gap-3 sm:gap-4 justify-center md:justify-start">
                 {!session?.user && (
                   <Link href="/auth/register">
-                    <Button color="primary" size="md" className="sm:size-lg">
+                    <Button color="primary" size="lg">
                       Mulai Belajar
                     </Button>
                   </Link>
@@ -187,29 +195,36 @@ export default function Home() {
                 {session?.user && (
                   <Button 
                     color="primary" 
-                    size="md" 
-                    className="sm:size-lg"
+                    size="lg"
                     onClick={handleDashboardClick}
                   >
                     Ke Dashboard
                   </Button>
                 )}
                 <Link href="#fitur">
-                  <Button color="primary" variant="bordered" size="md" className="sm:size-lg">
+                  <Button color="primary" variant="bordered" size="lg">
                     Pelajari Fitur
                   </Button>
                 </Link>
               </div>
             </div>
             <div className="w-full mb-8 md:mb-0 md:w-1/2 flex justify-center md:justify-end">
-              <Image 
-                src="/images/illustrations/studying-rafiki.svg" 
-                alt="E-Learning Platform"
-                width={500}
-                height={500}
-                className="w-full max-w-md" 
-                priority
-              />
+              <figure className="w-full max-w-xl overflow-hidden rounded-xl bg-white ring-1 ring-gray-900/5 shadow-[0_24px_60px_-15px_rgba(37,99,235,0.35)]">
+                <div className="flex items-center gap-1.5 border-b border-gray-100 bg-gray-50 px-3 py-2.5">
+                  <span className="h-2.5 w-2.5 rounded-full bg-red-400/70" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-amber-400/70" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-green-400/70" />
+                  <div className="ml-3 h-4 flex-1 rounded border border-gray-100 bg-white" />
+                </div>
+                <Image
+                  src="/images/general/dashboard-preview.png"
+                  alt="Tampilan dashboard guru: daftar mata pelajaran yang diajar, jumlah kelas, dan catatan pengajar"
+                  width={1440}
+                  height={900}
+                  className="w-full h-auto"
+                  priority
+                />
+              </figure>
             </div>
           </div>
         </section>
@@ -269,14 +284,14 @@ export default function Home() {
             </p>
             {!session?.user ? (
               <Link href="/auth/register">
-                <Button size="md" className="bg-white text-blue-500 font-semibold sm:size-lg">
+                <Button size="lg" className="bg-white text-blue-500 font-semibold">
                   Daftar Sekarang
                 </Button>
               </Link>
             ) : (
               <Button 
-                size="md" 
-                className="bg-white text-blue-500 font-semibold sm:size-lg"
+                size="lg"
+                className="bg-white text-blue-500 font-semibold"
                 onClick={handleDashboardClick}
               >
                 Ke Dashboard

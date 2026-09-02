@@ -16,29 +16,14 @@ import PageContainer from "../../../components/commons/PageContainer";
 import PageHeader from "../../../components/commons/PageHeader";
 import NotificationAlert from "../../../components/commons/NotificationAlert/NotificationAlert";
 import { getGuruMataPelajaran } from "../../../services/guru.service";
-import { getMateriByMataPelajaranId } from "../../../services/materiPelajaran.service";
-import { getAssignmentsByMateriId } from "../../../services/assignment.service";
+import { getAssignments } from "../../../services/assignment.service";
 import { Assignment, SubmissionStatus } from "../../../types/Assignment";
 import { MataPelajaran } from "../../../types/MataPelajaran";
 import { toast } from "sonner";
-
-interface Materi {
-  _id: string;
-  judul: string;
-}
-
-interface ExtendedMataPelajaran extends MataPelajaran {
-  materiPelajaranList?: Materi[];
-}
+import { formatTanggalWaktu } from "@/utils/date";
 
 interface ExtendedAssignment extends Assignment {
   mataPelajaranTitle?: string;
-  materiTitle?: string;
-}
-
-interface MenuItemData {
-  id: string;
-  title?: string;
 }
 
 const TeacherAssignmentsPage: React.FC = () => {
@@ -48,121 +33,41 @@ const TeacherAssignmentsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [assignments, setAssignments] = useState<ExtendedAssignment[]>([]);
-  const [mataPelajaranList, setMataPelajaranList] = useState<ExtendedMataPelajaran[]>([]);
+  const [mataPelajaranList, setMataPelajaranList] = useState<MataPelajaran[]>([]);
   const [selectedMataPelajaran, setSelectedMataPelajaran] = useState<string>("all");
   const [showError, setShowError] = useState(false);
-  const [loadingMateri, setLoadingMateri] = useState(false);
   
-  const fetchMataPelajaran = useCallback(async () => {
+  // one request for every assignment this guru can see — each row already
+  // carries its materi + mata pelajaran, so there is nothing to zip together
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await getGuruMataPelajaran({ limit: 100 });
-      
-      if (response && response.data && response.data.length > 0) {
-        setMataPelajaranList(response.data);
-        
-        await fetchMateriAndAssignments(response.data);
-      } else {
-        setLoading(false);
-      }
-    } catch (err: any) {
-      console.error("Error fetching mata pelajaran:", err);
-      setError(err.message || "Failed to load subjects");
-      setShowError(true);
-      setLoading(false);
-    }
-  }, []);
 
-  const fetchMateriAndAssignments = useCallback(async (mataPelajaranData: ExtendedMataPelajaran[]) => {
-    setLoadingMateri(true);
-    
-    try {
-      const materiPromises = mataPelajaranData.map(async (mp) => {
-        try {
-          const materiResponse = await getMateriByMataPelajaranId(mp._id as string);
-          return {
-            mataPelajaran: mp,
-            materi: materiResponse?.data || []
-          };
-        } catch (err) {
-          console.error(`Error fetching materi for mata pelajaran ${mp._id}:`, err);
-          return {
-            mataPelajaran: mp,
-            materi: []
-          };
-        }
-      });
-      
-      const materiResults = await Promise.all(materiPromises);
-      
-      const updatedMataPelajaranList: ExtendedMataPelajaran[] = materiResults.map(({ mataPelajaran, materi }) => ({
-        ...mataPelajaran,
-        materiPelajaranList: materi
-      }));
-      
-      setMataPelajaranList(updatedMataPelajaranList);
-      setLoadingMateri(false);
-      
-      const assignmentPromises: Promise<{
-        mataPelajaran: ExtendedMataPelajaran;
-        materi: Materi;
-        assignments: Assignment[];
-      }>[] = [];
-      
-      updatedMataPelajaranList.forEach(mp => {
-        if (mp.materiPelajaranList && mp.materiPelajaranList.length > 0) {
-          mp.materiPelajaranList.forEach((materi: Materi) => {
-            assignmentPromises.push(
-              getAssignmentsByMateriId(materi._id).then(response => ({
-                mataPelajaran: mp,
-                materi: materi,
-                assignments: response?.data || []
-              })).catch(error => {
-                console.error(`Error fetching assignments for materi ${materi._id}:`, error);
-                return {
-                  mataPelajaran: mp,
-                  materi: materi,
-                  assignments: []
-                };
-              })
-            );
-          });
-        }
-      });
-      
-      const assignmentResults = await Promise.all(assignmentPromises);
-      
-      let allAssignments: ExtendedAssignment[] = [];
-      
-      assignmentResults.forEach(({ mataPelajaran, materi, assignments }) => {
-        if (assignments.length > 0) {
-          const assignmentsWithContext = assignments.map((assignment: Assignment) => ({
-            ...assignment,
-            mataPelajaranTitle: mataPelajaran.judul,
-            materiTitle: materi.judul,
-          }));
-          
-          allAssignments = [...allAssignments, ...assignmentsWithContext];
-        }
-      });
-      
+      const [mataPelajaranResponse, assignmentsResponse] = await Promise.all([
+        getGuruMataPelajaran({ limit: 100 }),
+        getAssignments({ withSubmissions: true }),
+      ]);
 
-      allAssignments.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      
-      setAssignments(allAssignments);
+      setMataPelajaranList(mataPelajaranResponse?.data || []);
+      setAssignments(
+        ((assignmentsResponse?.data || []) as Assignment[]).map((assignment) => ({
+          ...assignment,
+          mataPelajaranTitle: assignment.mataPelajaran?.judul,
+        }))
+      );
       setError(null);
     } catch (err: any) {
-      console.error("Error in fetchMateriAndAssignments:", err);
+      console.error("Error loading assignments:", err);
       setError(err.message || "Failed to load assignments");
       setShowError(true);
     } finally {
       setLoading(false);
     }
   }, []);
-  
+
   useEffect(() => {
-    fetchMataPelajaran();
-  }, [fetchMataPelajaran]);
+    fetchData();
+  }, [fetchData]);
 
   const filteredAssignments = assignments.filter((assignment) => {
     if (selectedMataPelajaran !== "all" && assignment.mataPelajaranId !== selectedMataPelajaran) {
@@ -175,16 +80,6 @@ const TeacherAssignmentsPage: React.FC = () => {
     router.push(`/guru/matapelajaran/${assignment.mataPelajaranId}/tugas/${assignment._id}`);
   };
   
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('id-ID', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
   
   const isDeadlinePassed = (deadline: string) => {
     const now = new Date();
@@ -205,8 +100,9 @@ const TeacherAssignmentsPage: React.FC = () => {
       return 0;
     }
     
+    // score is `Int?` in the schema: an ungraded submission is null, not undefined
     const gradedCount = acceptableSubmissions.filter(
-      submission => submission.score !== undefined
+      submission => submission.score !== null && submission.score !== undefined
     ).length;
     
     return Math.round((gradedCount / acceptableSubmissions.length) * 100);
@@ -242,7 +138,7 @@ const TeacherAssignmentsPage: React.FC = () => {
                 onChange={(e) => {
                   setSelectedMataPelajaran(e.target.value);
                 }}
-                disabled={loading || loadingMateri}
+                disabled={loading}
               >
                 <option value="all">Semua Mata Pelajaran</option>
                 {mataPelajaranList.map((item) => (
@@ -292,7 +188,7 @@ const TeacherAssignmentsPage: React.FC = () => {
                       </div>
                       
                       <div className="text-xs text-gray-500 mb-3">
-                        <p><strong>Batas Waktu:</strong> {formatDate(assignment.deadline)}</p>
+                        <p><strong>Batas Waktu:</strong> {formatTanggalWaktu(assignment.deadline)}</p>
                         <p><strong>Pengumpulan:</strong> {assignment.submissions?.length || 0} tugas</p>
                       </div>
                       

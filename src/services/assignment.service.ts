@@ -1,8 +1,23 @@
 import instance, { CustomRequestConfig } from "../libs/axios/instance";
 import { CreateAssignmentInput, SubmissionStatus } from "../types/Assignment";
 
-export const getAssignmentsByMateriId = async (materiId: string) => {
-  const response = await instance.get(`/assignments/materi/${materiId}`);
+/**
+ * One request for a whole mata pelajaran (omit `mataPelajaranId` for everything
+ * the requester can see). The backend scopes the rows, and each one already
+ * carries its `materi` and `mataPelajaran`.
+ *
+ * Rows come back with `_count.submissions` only; pass `withSubmissions` when the
+ * screen actually renders submission rows, so list views stay light.
+ */
+export const getAssignments = async (
+  params: { mataPelajaranId?: string; withSubmissions?: boolean } = {}
+) => {
+  const query = new URLSearchParams();
+  if (params.mataPelajaranId) query.set("mataPelajaranId", params.mataPelajaranId);
+  if (params.withSubmissions) query.set("withSubmissions", "true");
+
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  const response = await instance.get(`/assignments${suffix}`);
   return response.data;
 };
 
@@ -49,10 +64,7 @@ export const submitAssignment = async (assignmentId: string, data: {
     fileName: string
   }> 
 }) => {
-  const config: CustomRequestConfig = {
-    noRedirect: true
-  };
-  const response = await instance.post(`/assignments/${assignmentId}/submit`, data, config);
+  const response = await instance.post(`/assignments/${assignmentId}/submit`, data);
   return response.data;
 };
 
@@ -82,24 +94,16 @@ export const updateSubmissionScore = async (
 };
 
 export const deleteSubmission = async (assignmentId: string, submissionId: string) => {
-  const config: CustomRequestConfig = {
-    noRedirect: true
-  };
   const response = await instance.delete(
-    `/assignments/${assignmentId}/submissions/${submissionId}`,
-    config
+    `/assignments/${assignmentId}/submissions/${submissionId}`
   );
   return response.data;
 };
 
 export const deleteOwnSubmission = async (assignmentId: string, submissionId: string) => {
-  const config: CustomRequestConfig = {
-    noRedirect: true
-  };
   try {
     const response = await instance.delete(
-      `/assignments/${assignmentId}/submissions/${submissionId}`,
-      config
+      `/assignments/${assignmentId}/submissions/${submissionId}`
     );
     return response.data;
   } catch (error) {
@@ -109,7 +113,7 @@ export const deleteOwnSubmission = async (assignmentId: string, submissionId: st
 
 const assignmentService = {
   createAssignment,
-  getAssignmentsByMateriId,
+  getAssignments,
   getAssignmentById,
   updateAssignment,
   deleteAssignment,

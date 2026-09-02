@@ -1,8 +1,9 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
-import { Card, CardBody, Spinner, Button, Avatar, Chip, Divider, Input, Textarea, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, useDisclosure, Badge, Popover, PopoverTrigger, PopoverContent, Checkbox } from "@nextui-org/react";
-import { FiBook, FiClock, FiAlertCircle, FiBell, FiCalendar, FiFileText, FiEdit2, FiTrash2, FiPlus, FiCheckSquare, FiX, FiCheckCircle, FiList, FiCheck } from "react-icons/fi";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Card, CardBody, Spinner, Button, Chip, Divider, Input, Textarea, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, useDisclosure, Popover, PopoverTrigger, PopoverContent, Checkbox } from "@nextui-org/react";
+import { FiBook, FiClock, FiAlertCircle, FiBell, FiFileText, FiPlus, FiCheckCircle, FiList, FiCheck } from "react-icons/fi";
 
 import PageContainer from "../../../commons/PageContainer";
 import PageHeader from "../../../commons/PageHeader";
@@ -15,9 +16,7 @@ import todoService, { Todo } from "../../../../services/todo.service";
 import { getEnrolledMataPelajaran, getNotifications, markNotificationAsRead, markAllNotificationsAsRead, getStudentAssignments, markAssignmentCompletion, Notification, Assignment } from "../../../../services/student.service";
 import { SessionExtended } from "../../../../types/Auth";
 import { useProfile } from "../../../../hooks/useProfile";
-import { format } from "date-fns";
-import { id } from "date-fns/locale";
-import { PaginationMeta } from "../../../../types/common";
+import { formatTanggal, formatWaktuRelatif } from "@/utils/date";
 import NoteCard from "../../../commons/NoteCard";
 
 
@@ -33,32 +32,101 @@ interface Subject {
   createdAt: string;
 }
 
+/** Where a notification points: the mata pelajaran, or the tugas/materi inside it. */
+const notificationHref = (notification: Notification) => {
+  const base = `/murid/matapelajaran/${notification.mataPelajaran._id}`;
+  if (!notification.relatedItem) return base;
+  return `${base}/${notification.type === "tugas" ? "tugas" : "materi"}/${notification.relatedItem}`;
+};
 
 const Dashboard: React.FC = () => {
   const { data: session } = useSession() as { data: SessionExtended | null };
   const router = useRouter();
-  const [loading, setLoading] = useState<boolean>(true);
-  const [isSearching, setIsSearching] = useState<boolean>(false);
+  const queryClient = useQueryClient();
+  const { profile } = useProfile();
+  const enabled = !!session?.user;
+
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const { profile } = useProfile();
+  const flashSuccess = (message: string) => {
+    setSuccessMessage(message);
+    setTimeout(() => setSuccessMessage(null), 3000);
+  };
+  const flashError = (message: string) => {
+    setError(message);
+    setTimeout(() => setError(null), 3000);
+  };
 
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [isNotificationOpen, setIsNotificationOpen] = useState<boolean>(false);
-  const [loadingNotifications, setLoadingNotifications] = useState<boolean>(false);
-  
-  const [enrolledSubjects, setEnrolledSubjects] = useState<Subject[]>([]);
-  const [searchResults, setSearchResults] = useState<Subject[] | null>(null);
-  const [pendingAssignments, setPendingAssignments] = useState<Assignment[]>([]);
-  const [pagination, setPagination] = useState<PaginationMeta>({
-    total: 0,
-    totalPages: 0,
-    current: 1,
-    size: 10
+  // --- enrolled subjects + active assignments -------------------------------
+
+  const { data: enrolledSubjects = [], isLoading: loadingSubjects } = useQuery({
+    queryKey: ["enrolledSubjects"],
+    queryFn: async (): Promise<Subject[]> => (await getEnrolledMataPelajaran()).data || [],
+    enabled,
   });
 
-  const [todos, setTodos] = useState<Todo[]>([]);
-  const [loadingTodos, setLoadingTodos] = useState(false);
+  const { data: pendingAssignments = [], isLoading: loadingAssignments } = useQuery({
+    queryKey: ["studentAssignments"],
+    queryFn: async (): Promise<Assignment[]> => {
+      const response = await getStudentAssignments();
+      const now = new Date();
+      return (response.data || []).filter((a: Assignment) => new Date(a.deadline) > now);
+    },
+    enabled,
+  });
+
+  const loading = loadingSubjects || loadingAssignments;
+
+  const completionMutation = useMutation({
+    mutationFn: ({ id, isCompleted }: { id: string; isCompleted: boolean }) =>
+      markAssignmentCompletion(id, isCompleted),
+    onSuccess: (_data, { isCompleted }) => {
+      flashSuccess(isCompleted ? "Tugas berhasil ditandai sebagai selesai" : "Tugas ditandai sebagai belum selesai");
+      queryClient.invalidateQueries({ queryKey: ["studentAssignments"] });
+    },
+    onError: (err: Error) => flashError(err.message || "Gagal mengubah status tugas"),
+  });
+
+  const handleToggleAssignmentStatus = (assignmentId: string) => {
+    const assignment = pendingAssignments.find((a) => a._id === assignmentId);
+    if (!assignment) return;
+
+    // nothing handed in yet — send them to the tugas page instead of toggling
+    if (!assignment.isSubmitted && !assignment.submission) {
+      const mataPelajaranId = assignment.mataPelajaran?._id || assignment.mataPelajaranId;
+      router.push(`/murid/matapelajaran/${mataPelajaranId}/tugas/${assignment._id}`);
+      return;
+    }
+
+    if (assignment.submission) {
+      const isCompleted = !(assignment.isCompleted !== undefined ? assignment.isCompleted : assignment.isSubmitted);
+      completionMutation.mutate({ id: assignmentId, isCompleted });
+    }
+  };
+
+  // --- subject search (client-side over the enrolled list) -------------------
+
+  const [searchTerm, setSearchTerm] = useState("");
+  const searchResults: Subject[] | null = searchTerm
+    ? enrolledSubjects.filter(
+        (subject) =>
+          subject.judul.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          subject.deskripsi.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    : null;
+
+  const handleViewAll = () => router.push("/murid/matapelajaran");
+
+  // --- todos ----------------------------------------------------------------
+
+  const { data: todos = [], isLoading: loadingTodos } = useQuery({
+    queryKey: ["todos"],
+    queryFn: async () => (await todoService.getTodos()).data,
+    enabled,
+  });
+
+  const invalidateTodos = () => queryClient.invalidateQueries({ queryKey: ["todos"] });
+
   const { isOpen, onOpen, onClose } = useDisclosure();
   const { isOpen: isDeleteModalOpen, onOpen: onOpenDeleteModal, onClose: onCloseDeleteModal } = useDisclosure();
   const [isEdit, setIsEdit] = useState(false);
@@ -68,95 +136,6 @@ const Dashboard: React.FC = () => {
   const [todoDescription, setTodoDescription] = useState('');
   const [todoDueDate, setTodoDueDate] = useState('');
 
-  const fetchTodos = async () => {
-    try {
-      setLoadingTodos(true);
-      const response = await todoService.getTodos();
-      setTodos(response.data);
-    } catch (err: any) {
-      setError(err.message || "Failed to fetch todos");
-    } finally {
-      setLoadingTodos(false);
-    }
-  };
-
-  useEffect(() => {
-    if (session?.user) {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-
-        // all independent — start together, resolve in parallel
-        // (profile comes from useProfile())
-        const enrolledP = getEnrolledMataPelajaran();
-        const assignmentsP = getStudentAssignments();
-        const notificationsP = fetchNotifications();
-        const todosP = fetchTodos();
-
-        try {
-          const enrolledResponse = await enrolledP;
-          setEnrolledSubjects(enrolledResponse.data || []);
-          setPagination({
-            total: enrolledResponse.meta?.pagination?.total || 0,
-            totalPages: enrolledResponse.meta?.pagination?.totalPages || 0,
-            current: enrolledResponse.meta?.pagination?.current || 1,
-            size: enrolledResponse.meta?.pagination?.size || 10
-          });
-          } catch (error) {
-            console.error('Error fetching enrolled subjects:', error);
-          }
-          
-          try {
-            const assignmentsResponse = await assignmentsP;
-            
-            const now = new Date();
-            const pending = assignmentsResponse.data.filter((assignment: any) => {
-              const isDeadlineActive = new Date(assignment.deadline) > now;
-              return isDeadlineActive;
-            });
-            
-            setPendingAssignments(pending);
-          } catch (error) {
-            console.error('Error fetching assignments:', error);
-          }
-          
-          await notificationsP;
-
-          await todosP;
-      } catch (err: any) {
-          setError(err.message || 'Failed to fetch data');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-      fetchData();
-    }
-  }, [session]);
-
-  const formatDate = (dateString?: string | Date) => {
-    if (!dateString) return '-';
-    try {
-      return format(new Date(dateString), 'dd MMMM yyyy', { locale: id });
-    } catch (e) {
-      return dateString.toString();
-    }
-  };
-
-  const formatRelativeTime = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
-    
-    if (diffDays === 0) {
-      return "Hari ini";
-    } else if (diffDays === 1) {
-      return "Kemarin";
-    } else {
-      return formatDate(dateString);
-    }
-  };
-
   const resetTodoForm = () => {
     setTodoTitle('');
     setTodoDescription('');
@@ -164,6 +143,37 @@ const Dashboard: React.FC = () => {
     setCurrentTodo(null);
     setIsEdit(false);
   };
+
+  const saveTodoMutation = useMutation({
+    mutationFn: (todo: Omit<Todo, "_id" | "createdAt" | "updatedAt">) =>
+      isEdit && currentTodo?._id
+        ? todoService.updateTodo(currentTodo._id, todo)
+        : todoService.createTodo(todo),
+    onSuccess: () => {
+      flashSuccess(isEdit ? "Berhasil memperbarui catatan" : "Berhasil menambahkan catatan");
+      onClose();
+      resetTodoForm();
+      invalidateTodos();
+    },
+    onError: (err: Error) => setError(err.message || "Gagal menyimpan catatan"),
+  });
+
+  const deleteTodoMutation = useMutation({
+    mutationFn: (id: string) => todoService.deleteTodo(id),
+    onSuccess: () => {
+      flashSuccess("Berhasil menghapus catatan");
+      onCloseDeleteModal();
+      setTodoToDelete(null);
+      invalidateTodos();
+    },
+    onError: (err: Error) => setError(err.message || "Gagal menghapus catatan"),
+  });
+
+  const toggleTodoMutation = useMutation({
+    mutationFn: (id: string) => todoService.toggleTodoStatus(id),
+    onSuccess: invalidateTodos,
+    onError: (err: Error) => setError(err.message || "Gagal mengubah status catatan"),
+  });
 
   const handleAddTodo = () => {
     resetTodoForm();
@@ -184,260 +194,82 @@ const Dashboard: React.FC = () => {
     onOpenDeleteModal();
   };
 
-  const handleDeleteTodo = async () => {
-    if (!todoToDelete) return;
-    
-    try {
-      await todoService.deleteTodo(todoToDelete);
-      setSuccessMessage("Berhasil menghapus catatan");
-      fetchTodos();
-      onCloseDeleteModal();
-      setTodoToDelete(null);
-      setTimeout(() => setSuccessMessage(null), 3000);
-    } catch (err: any) {
-      setError(err.message || "Gagal menghapus catatan");
+  const handleSaveTodo = () => {
+    if (!todoTitle) {
+      setError("Judul catatan harus diisi");
+      return;
     }
+
+    saveTodoMutation.mutate({
+      title: todoTitle,
+      description: todoDescription,
+      dueDate: todoDueDate || undefined,
+      completed: isEdit ? currentTodo?.completed || false : false,
+    });
   };
 
-  const handleToggleTodoStatus = async (id: string) => {
-    try {
-      await todoService.toggleTodoStatus(id);
-      fetchTodos();
-    } catch (err: any) {
-      setError(err.message || "Gagal mengubah status catatan");
+  // --- notifications --------------------------------------------------------
+
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+
+  const { data: notifications = [], isLoading: loadingNotifications, refetch: refetchNotifications } = useQuery({
+    queryKey: ["studentNotifications"],
+    queryFn: async (): Promise<Notification[]> => (await getNotifications()).data || [],
+    enabled,
+  });
+
+  const unreadNotifications = notifications.filter((n) => !n.isRead).length;
+
+  const invalidateNotifications = () =>
+    queryClient.invalidateQueries({ queryKey: ["studentNotifications"] });
+
+  const markAsReadMutation = useMutation({
+    mutationFn: (id: string) => markNotificationAsRead(id),
+    onSuccess: invalidateNotifications,
+    onError: (err) => console.error("Error marking notification as read:", err),
+  });
+
+  const markAllAsReadMutation = useMutation({
+    mutationFn: markAllNotificationsAsRead,
+    onSuccess: () => {
+      flashSuccess("Semua notifikasi telah ditandai sebagai dibaca");
+      invalidateNotifications();
+    },
+    onError: (err) => {
+      console.error("Error marking all notifications as read:", err);
+      flashError("Gagal menandai semua notifikasi sebagai dibaca");
+    },
+  });
+
+  const handleMarkAllAsRead = () => {
+    if (unreadNotifications === 0) {
+      flashSuccess("Tidak ada notifikasi yang perlu ditandai");
+      return;
     }
+    markAllAsReadMutation.mutate();
   };
 
-  const handleSaveTodo = async () => {
-    try {
-      if (!todoTitle) {
-        setError("Judul catatan harus diisi");
-        return;
-      }
-
-      const todoData = {
-        title: todoTitle,
-        description: todoDescription,
-        dueDate: todoDueDate || undefined,
-        completed: isEdit ? currentTodo?.completed || false : false
-      };
-
-      if (isEdit && currentTodo?._id) {
-        await todoService.updateTodo(currentTodo._id, todoData);
-        setSuccessMessage("Berhasil memperbarui catatan");
-      } else {
-        await todoService.createTodo(todoData);
-        setSuccessMessage("Berhasil menambahkan catatan");
-      }
-      
-      onClose();
-      resetTodoForm();
-      fetchTodos();
-      setTimeout(() => setSuccessMessage(null), 3000);
-    } catch (err: any) {
-      setError(err.message || "Gagal menyimpan catatan");
-    }
+  // navigation happens either way — a failed mark-as-read must not block it
+  const handleNotificationClick = (notification: Notification) => {
+    if (!notification.isRead) markAsReadMutation.mutate(notification._id);
+    router.push(notificationHref(notification));
   };
 
-  const handleNotificationClick = async (notification: Notification) => {
-    try {
-      if (!notification.isRead) {
-        await markNotificationAsRead(notification._id);
-        
-        setNotifications(prevNotifications => 
-          prevNotifications.map(n => 
-            n._id === notification._id ? { ...n, isRead: true } : n
-          )
-        );
-      }
-      
-      if (notification.type === "tugas") {
-        if (notification.relatedItem) {
-          router.push(`/murid/matapelajaran/${notification.mataPelajaran._id}/tugas/${notification.relatedItem}`);
-        } else {
-          router.push(`/murid/matapelajaran/${notification.mataPelajaran._id}`);
-        }
-      } else {
-        if (notification.relatedItem) {
-          router.push(`/murid/matapelajaran/${notification.mataPelajaran._id}/materi/${notification.relatedItem}`);
-        } else {
-          router.push(`/murid/matapelajaran/${notification.mataPelajaran._id}`);
-        }
-      }
-    } catch (error) {
-      console.error("Error marking notification as read:", error);
-      if (notification.type === "tugas") {
-        if (notification.relatedItem) {
-          router.push(`/murid/matapelajaran/${notification.mataPelajaran._id}/tugas/${notification.relatedItem}`);
-        } else {
-          router.push(`/murid/matapelajaran/${notification.mataPelajaran._id}`);
-        }
-      } else {
-        if (notification.relatedItem) {
-          router.push(`/murid/matapelajaran/${notification.mataPelajaran._id}/materi/${notification.relatedItem}`);
-        } else {
-          router.push(`/murid/matapelajaran/${notification.mataPelajaran._id}`);
-        }
-      }
-    }
-  };
+  const toggleNotificationPopover = () => setIsNotificationOpen((open) => !open);
 
-  const handleMarkAllAsRead = async () => {
-    try {
-      if (notifications.length === 0 || notifications.every(n => n.isRead)) {
-        setSuccessMessage("Tidak ada notifikasi yang perlu ditandai");
-        setTimeout(() => setSuccessMessage(null), 3000);
-        return;
-      }
-      
-      await markAllNotificationsAsRead();
-      
-      setNotifications(prevNotifications => 
-        prevNotifications.map(n => ({ ...n, isRead: true }))
-      );
-      
-      setSuccessMessage("Semua notifikasi telah ditandai sebagai dibaca");
-      setTimeout(() => setSuccessMessage(null), 3000);
-    } catch (error) {
-      console.error("Error marking all notifications as read:", error);
-      setError("Gagal menandai semua notifikasi sebagai dibaca");
-      setTimeout(() => setError(null), 3000);
-    }
-  };
-
-  const handleSearch = async (searchTerm: string) => {
-    try {
-      setIsSearching(true);
-      setError(null);
-      
-      if (!searchTerm.trim()) {
-        setSearchResults(null);
-        return;
-      }
-      
-      const filteredSubjects = enrolledSubjects.filter(subject => 
-        subject.judul.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        subject.deskripsi.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-      
-      setSearchResults(filteredSubjects);
-      setPagination({
-        total: filteredSubjects.length,
-        totalPages: 1,
-        current: 1,
-        size: 10
-      });
-    } catch (err: any) {
-      setError(err.message || "Failed to search subjects");
-      console.error("Search error:", err);
-    } finally {
-      setIsSearching(false);
-    }
-  };
-
-  const handleViewAll = () => {
-    router.push("/murid/matapelajaran");
-  };
-
-  const handleViewAllNotifications = () => {
-    router.push('/murid/notifikasi');
-  };
-
-  const toggleNotificationPopover = () => {
-    setIsNotificationOpen(!isNotificationOpen);
-  };
-
-  const fetchNotifications = async () => {
-    try {
-      setLoadingNotifications(true);
-      const notificationsResponse = await getNotifications();
-      setNotifications(notificationsResponse.data || []);
-    } catch (err: any) {
-      console.error('Error fetching notifications:', err);
-    } finally {
-      setLoadingNotifications(false);
-    }
-  };
-
-  const handleAssignmentClick = (assignment: any): void => {
-    if (assignment && assignment.mataPelajaranId && assignment._id) {
-      router.push(`/murid/matapelajaran/${assignment.mataPelajaranId._id}/tugas/${assignment._id}`);
-    }
-  };
-
-  const handleToggleAssignmentStatus = async (assignmentId: string) => {
-    try {
-      const assignment = pendingAssignments.find((a: any) => a._id === assignmentId);
-      if (!assignment) return;
-
-      if (!assignment.isSubmitted && !assignment.submission) {
-        router.push(`/murid/matapelajaran/${assignment.mataPelajaranId._id}/tugas/${assignment._id}`);
-        return;
-      }
-
-      if (assignment.submission) {
-        const newStatus = assignment.isCompleted !== undefined ? !assignment.isCompleted : !assignment.isSubmitted;
-        
-        await markAssignmentCompletion(assignmentId, newStatus);
-        
-        setPendingAssignments(
-          pendingAssignments.map((a: any) => 
-            a._id === assignmentId ? { ...a, isCompleted: newStatus } : a
-          )
-        );
-        
-        if (newStatus) {
-          setSuccessMessage("Tugas berhasil ditandai sebagai selesai");
-      } else {
-          setSuccessMessage("Tugas ditandai sebagai belum selesai");
-        }
-        setTimeout(() => setSuccessMessage(null), 3000);
-      }
-    } catch (err: any) {
-      console.error("Error toggling assignment status:", err);
-      setError(err.message || "Gagal mengubah status tugas");
-      setTimeout(() => setError(null), 3000);
-    }
-  };
+  // --- render helpers -------------------------------------------------------
 
   const renderSubjects = () => {
-    if (searchResults !== null) {
-      if (searchResults.length === 0) {
-        return (
-          <Card>
-            <CardBody className="py-8">
-              <p className="text-center text-gray-500">
-                Tidak ada mata pelajaran yang sesuai dengan pencarian Anda.
-              </p>
-            </CardBody>
-          </Card>
-        );
-      }
+    const subjects = searchResults ?? enrolledSubjects;
 
-      return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {searchResults.map((subject) => (
-            <SubjectCard
-              key={subject._id}
-              id={subject._id}
-              title={subject.judul}
-              description={subject.deskripsi}
-              category={subject.kategori}
-              teacher={subject.guru?.fullName || 'Unknown'}
-              createdAt={subject.createdAt}
-              viewPath="/murid/matapelajaran"
-            />
-          ))}
-        </div>
-      );
-    }
-
-    if (!enrolledSubjects || enrolledSubjects.length === 0) {
+    if (subjects.length === 0) {
       return (
         <Card>
           <CardBody className="py-8">
             <p className="text-center text-gray-500">
-              Anda belum terdaftar di mata pelajaran apapun.
+              {searchResults
+                ? "Tidak ada mata pelajaran yang sesuai dengan pencarian Anda."
+                : "Anda belum terdaftar di mata pelajaran apapun."}
             </p>
           </CardBody>
         </Card>
@@ -446,7 +278,7 @@ const Dashboard: React.FC = () => {
 
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {enrolledSubjects.map((subject) => (
+        {subjects.map((subject) => (
           <SubjectCard
             key={subject._id}
             id={subject._id}
@@ -479,17 +311,17 @@ const Dashboard: React.FC = () => {
         </div>
       );
     }
-    
+
     const displayNotifications = notifications.slice(0, 3);
 
     return (
       <div>
         {displayNotifications.map((notification, index) => (
           <React.Fragment key={notification._id}>
-                    <div 
+            <div
               className={`p-3 sm:p-4 cursor-pointer hover:bg-gray-50 ${!notification.isRead ? 'bg-blue-50' : ''} relative`}
-            onClick={() => handleNotificationClick(notification)}
-          >
+              onClick={() => handleNotificationClick(notification)}
+            >
               <div className="flex gap-4">
                 <div className="flex-shrink-0">
                   {notification.type === 'tugas' ? (
@@ -507,14 +339,14 @@ const Dashboard: React.FC = () => {
                     <h4 className="font-medium text-sm sm:text-base text-gray-800 line-clamp-1">{notification.title}</h4>
                     <div className="flex-shrink-0 ml-2 mr-4">
                       <span className="text-xs text-gray-500 whitespace-nowrap inline-block bg-white px-1.5 py-0.5 rounded-md">
-                        {formatRelativeTime(notification.createdAt)}
+                        {formatWaktuRelatif(notification.createdAt)}
                       </span>
                     </div>
                   </div>
                   <p className="text-xs sm:text-sm text-gray-600 mt-0.5 line-clamp-2">{notification.description}</p>
                   <div className="flex items-center mt-1 gap-2">
-                    <Chip 
-                      size="sm" 
+                    <Chip
+                      size="sm"
                       color={notification.type === 'tugas' ? 'warning' : 'primary'}
                       className="h-5 text-xs"
                     >
@@ -546,27 +378,23 @@ const Dashboard: React.FC = () => {
     return null;
   }
 
-  const unreadNotifications = notifications.filter(n => !n.isRead).length;
-
   return (
     <PageContainer>
       <div className="flex flex-row justify-between items-center mb-6 md:flex-row md:items-center md:mb-6">
         <div className="flex-1">
-          <PageHeader 
-            title="Dashboard Murid" 
-            description="Selamat datang di halaman Dashboard Murid" 
+          <PageHeader
+            title="Dashboard Murid"
+            description="Selamat datang di halaman Dashboard Murid"
           />
         </div>
         <div className="flex items-center gap-4 pr-2 md:pr-2">
-          <Popover 
-            placement="bottom-end" 
+          <Popover
+            placement="bottom-end"
             showArrow={true}
             isOpen={isNotificationOpen}
             onOpenChange={(open) => {
               setIsNotificationOpen(open);
-              if (open) {
-                fetchNotifications();
-              }
+              if (open) refetchNotifications();
             }}
           >
             <PopoverTrigger>
@@ -598,6 +426,7 @@ const Dashboard: React.FC = () => {
                     variant="light"
                     color="primary"
                     onPress={handleMarkAllAsRead}
+                    isLoading={markAllAsReadMutation.isPending}
                     className="text-xs sm:text-sm"
                     startContent={<FiCheck size={14} />}
                   >
@@ -640,13 +469,13 @@ const Dashboard: React.FC = () => {
       ) : (
         <>
           <div className="block md:hidden mb-6">
-            <UserProfileCard 
+            <UserProfileCard
               user={profile ? {
                 ...session.user,
                 profilePicture: profile.profilePicture,
                 fullName: profile.fullName,
                 email: profile.email
-              } : session.user} 
+              } : session.user}
             />
           </div>
 
@@ -667,27 +496,27 @@ const Dashboard: React.FC = () => {
 
           <div className="hidden md:grid md:grid-cols-3 md:gap-5 md:mb-5">
             <div className="col-span-1">
-              <UserProfileCard 
+              <UserProfileCard
                 user={profile ? {
                   ...session.user,
                   profilePicture: profile.profilePicture,
                   fullName: profile.fullName,
                   email: profile.email
-                } : session.user} 
+                } : session.user}
               />
             </div>
             <div className="col-span-2">
               <div className="grid grid-cols-2 gap-4">
-                <StatisticsCard 
-                  title="Mata Pelajaran" 
-                  value={enrolledSubjects.length} 
-                  icon={<FiBook size={18} className="text-xl" />} 
+                <StatisticsCard
+                  title="Mata Pelajaran"
+                  value={enrolledSubjects.length}
+                  icon={<FiBook size={18} className="text-xl" />}
                   color="primary"
                 />
-                <StatisticsCard 
-                  title="Tugas Aktif" 
-                  value={pendingAssignments.length} 
-                  icon={<FiFileText size={18} className="text-xl" />} 
+                <StatisticsCard
+                  title="Tugas Aktif"
+                  value={pendingAssignments.length}
+                  icon={<FiFileText size={18} className="text-xl" />}
                   color="warning"
                 />
               </div>
@@ -702,9 +531,9 @@ const Dashboard: React.FC = () => {
                     <FiList size={24} className="text-primary mr-2 md:text-xl" />
                     <h3 className="text-lg font-semibold md:text-base">Catatan Saya</h3>
                   </div>
-                  <Button 
-                    color="primary" 
-                    variant="light" 
+                  <Button
+                    color="primary"
+                    variant="light"
                     startContent={<FiPlus className="md:text-sm" />}
                     onClick={handleAddTodo}
                     size="sm"
@@ -714,7 +543,7 @@ const Dashboard: React.FC = () => {
                     <span className="hidden md:block">Tambah</span>
                   </Button>
                 </div>
-                
+
                 {loadingTodos ? (
                   <div className="flex justify-center py-8 md:py-4">
                     <Spinner size="sm" />
@@ -736,10 +565,10 @@ const Dashboard: React.FC = () => {
                           dueDate: todo.dueDate,
                           completed: todo.completed
                         }}
-                        onToggleStatus={handleToggleTodoStatus}
+                        onToggleStatus={(id) => toggleTodoMutation.mutate(id)}
                         onEdit={handleEditTodo}
                         onDelete={handleConfirmDelete}
-                        formatDate={formatDate}
+                        formatDate={formatTanggal}
                       />
                     ))}
                   </div>
@@ -754,9 +583,9 @@ const Dashboard: React.FC = () => {
                     <FiClock size={24} className="text-warning mr-2 md:text-xl" />
                     <h3 className="text-lg font-semibold md:text-base">Tugas Aktif</h3>
                   </div>
-                  <Button 
-                    color="primary" 
-                    variant="light" 
+                  <Button
+                    color="primary"
+                    variant="light"
                     size="sm"
                     onClick={() => router.push('/murid/tugas')}
                     className="md:min-w-0 md:px-3 md:text-xs"
@@ -767,23 +596,23 @@ const Dashboard: React.FC = () => {
                 <div>
                   {pendingAssignments.length > 0 ? (
                     <div className="space-y-2 sm:space-y-3">
-                      {pendingAssignments.slice(0, 5).map((assignment: any) => (
-                        <div 
+                      {pendingAssignments.slice(0, 5).map((assignment) => (
+                        <div
                           key={assignment._id}
                           className={`relative p-2 sm:p-3 border rounded-md ${assignment.isSubmitted ? 'bg-gray-50 border-gray-200' : 'bg-white border-gray-300'} hover:bg-gray-50 transition-colors`}
                         >
-                          <div 
-                            className="absolute inset-0 cursor-pointer" 
-                            onClick={() => router.push(`/murid/matapelajaran/${assignment.mataPelajaranId._id}/tugas/${assignment._id}`)}
+                          <div
+                            className="absolute inset-0 cursor-pointer"
+                            onClick={() => router.push(`/murid/matapelajaran/${assignment.mataPelajaran?._id}/tugas/${assignment._id}`)}
                             aria-label={`Lihat tugas ${assignment.title}`}
                           />
                           <div className="flex items-start gap-2 sm:gap-3 relative z-10">
                             <div className="mt-0.5 sm:mt-0">
-                              <div 
+                              <div
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleToggleAssignmentStatus(assignment._id);
-                                }} 
+                                }}
                                 className="relative z-20 p-1"
                               >
                                 <Checkbox
@@ -799,24 +628,24 @@ const Dashboard: React.FC = () => {
                                 <div className="pr-0 sm:pr-3 mb-3 sm:mb-0 flex-1">
                                   <h4 className={`text-sm sm:text-base font-medium ${assignment.isSubmitted ? 'line-through text-gray-500' : ''}`}>{assignment.title}</h4>
                                   <p className={`text-xs sm:text-sm mt-0.5 ${assignment.isSubmitted ? 'text-gray-400' : 'text-gray-600'}`}>
-                                    {assignment.mataPelajaranId?.judul || 'Mata Pelajaran tidak tersedia'}
+                                    {assignment.mataPelajaran?.judul || 'Mata Pelajaran tidak tersedia'}
                                   </p>
                                   <div className="flex items-center mt-1.5 text-xs text-gray-500">
                                     <FiClock size={10} className="mr-1" />
-                                    <span>Tenggat: {formatDate(assignment.deadline)}</span>
+                                    <span>Tenggat: {formatTanggal(assignment.deadline)}</span>
                                   </div>
                                 </div>
                                 <div className="self-start sm:self-center flex justify-end w-full sm:w-auto">
                                   <div onClick={(e) => e.stopPropagation()} className="w-full sm:w-auto">
-                                                                          <Button 
-                                        size="sm" 
-                                        color="primary" 
-                                        variant="flat"
-                                        onClick={() => router.push(`/murid/matapelajaran/${assignment.mataPelajaranId._id}/tugas/${assignment._id}`)}
-                                        className="min-w-[110px] h-10 px-8 text-xs sm:text-sm relative z-10 w-full sm:w-auto"
-                                      >
-                                        Lihat
-                                      </Button>
+                                    <Button
+                                      size="sm"
+                                      color="primary"
+                                      variant="flat"
+                                      onClick={() => router.push(`/murid/matapelajaran/${assignment.mataPelajaran?._id}/tugas/${assignment._id}`)}
+                                      className="min-w-[110px] h-10 px-8 text-xs sm:text-sm relative z-10 w-full sm:w-auto"
+                                    >
+                                      Lihat
+                                    </Button>
                                   </div>
                                 </div>
                               </div>
@@ -826,9 +655,9 @@ const Dashboard: React.FC = () => {
                       ))}
                       {pendingAssignments.length > 5 && (
                         <div className="flex justify-center mt-2">
-                          <Button 
-                            size="sm" 
-                            variant="flat" 
+                          <Button
+                            size="sm"
+                            variant="flat"
                             color="primary"
                             onClick={() => router.push('/murid/tugas')}
                             className="text-xs sm:text-sm"
@@ -850,40 +679,34 @@ const Dashboard: React.FC = () => {
             <Card>
               <CardBody className="p-3 sm:p-4">
                 <h3 className="text-base sm:text-lg font-semibold mb-2 sm:mb-3">Cari Mata Pelajaran</h3>
-              <SubjectSearch onSearch={handleSearch} />
-              {searchResults !== null && (
+                <SubjectSearch onSearch={(term) => setSearchTerm(term.trim())} />
+                {searchResults !== null && (
                   <div className="mt-2 text-xs sm:text-sm">
-                  <button 
-                    onClick={() => setSearchResults(null)} 
-                    className="text-primary hover:underline"
-                  >
-                    Bersihkan pencarian
-                  </button>
-                </div>
-              )}
-            </CardBody>
-          </Card>
+                    <button
+                      onClick={() => setSearchTerm("")}
+                      className="text-primary hover:underline"
+                    >
+                      Bersihkan pencarian
+                    </button>
+                  </div>
+                )}
+              </CardBody>
+            </Card>
 
             <div>
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">
-                {searchResults !== null ? "Hasil Pencarian" : "Mata Pelajaran Saya"}
-              </h3>
-              <button 
-                onClick={handleViewAll}
-                className="text-sm text-primary hover:underline"
-              >
-                Lihat Semua
-              </button>
-            </div>
-            
-            {isSearching ? (
-              <div className="flex justify-center py-12">
-                <Spinner size="lg" color="primary" />
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold">
+                  {searchResults !== null ? "Hasil Pencarian" : "Mata Pelajaran Saya"}
+                </h3>
+                <button
+                  onClick={handleViewAll}
+                  className="text-sm text-primary hover:underline"
+                >
+                  Lihat Semua
+                </button>
               </div>
-            ) : (
-              renderSubjects()
-            )}
+
+              {renderSubjects()}
             </div>
           </div>
         </>
@@ -918,7 +741,7 @@ const Dashboard: React.FC = () => {
             <Button variant="flat" onPress={onClose}>
               Batal
             </Button>
-            <Button color="primary" onPress={handleSaveTodo}>
+            <Button color="primary" onPress={handleSaveTodo} isLoading={saveTodoMutation.isPending}>
               Simpan
             </Button>
           </ModalFooter>
@@ -939,7 +762,11 @@ const Dashboard: React.FC = () => {
             <Button variant="flat" onPress={onCloseDeleteModal}>
               Batal
             </Button>
-            <Button color="danger" onPress={handleDeleteTodo}>
+            <Button
+              color="danger"
+              onPress={() => todoToDelete && deleteTodoMutation.mutate(todoToDelete)}
+              isLoading={deleteTodoMutation.isPending}
+            >
               Hapus
             </Button>
           </ModalFooter>

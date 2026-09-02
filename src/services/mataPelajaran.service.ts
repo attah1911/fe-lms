@@ -80,10 +80,7 @@ export const getEnrolledStudents = async (mataPelajaranId: string) => {
 
 export const enrollStudent = async (mataPelajaranId: string, studentId: string) => {
   try {
-    const config: CustomRequestConfig = {
-      noRedirect: true
-    };
-    const response = await instance.post(`${endpoint.MATA_PELAJARAN}/${mataPelajaranId}/enroll/${studentId}`, {}, config);
+    const response = await instance.post(`${endpoint.MATA_PELAJARAN}/${mataPelajaranId}/enroll/${studentId}`, {});
     return response.data;
   } catch (error: any) {
     console.error("Enrollment error:", error);
@@ -93,10 +90,7 @@ export const enrollStudent = async (mataPelajaranId: string, studentId: string) 
 
 export const selfEnrollStudent = async (mataPelajaranId: string) => {
   try {
-    const config: CustomRequestConfig = {
-      noRedirect: true
-    };
-    const response = await instance.post(`${endpoint.MATA_PELAJARAN}/${mataPelajaranId}/self-enroll`, {}, config);
+    const response = await instance.post(`${endpoint.MATA_PELAJARAN}/${mataPelajaranId}/self-enroll`, {});
     return response.data;
   } catch (error: any) {
     console.error("Self-enrollment error:", error);
