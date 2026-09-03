@@ -5,15 +5,15 @@ const nextConfig = {
     optimizePackageImports: ['@nextui-org/react'],
   },
   images: {
-    domains: [
+    remotePatterns: [
       'images.pexels.com',
       'pexels.com',
       'res.cloudinary.com',
       'cloudinary.com',
       'lh3.googleusercontent.com',
       'avatars.githubusercontent.com',
-      'ui-avatars.com'
-    ],
+      'ui-avatars.com',
+    ].map((hostname) => ({ protocol: 'https', hostname, pathname: '/**' })),
   },
 };
 
