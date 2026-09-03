@@ -67,11 +67,10 @@ const Dashboard: React.FC = () => {
 
   const { data: pendingAssignments = [], isLoading: loadingAssignments } = useQuery({
     queryKey: ["studentAssignments"],
-    queryFn: async (): Promise<Assignment[]> => {
-      const response = await getStudentAssignments();
-      const now = new Date();
-      return (response.data || []).filter((a: Assignment) => new Date(a.deadline) > now);
-    },
+    queryFn: async (): Promise<Assignment[]> => (await getStudentAssignments()).data || [],
+    // cache the full list — `/murid/tugas` reads the same key and needs the
+    // overdue ones too; only this card narrows it down
+    select: (all) => all.filter((a) => new Date(a.deadline) > new Date()),
     enabled,
   });
 

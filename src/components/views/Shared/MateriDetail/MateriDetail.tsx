@@ -1,22 +1,27 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardBody, Divider, Button, Spinner, Textarea, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Switch } from "@nextui-org/react";
-import { FiArrowLeft, FiUpload, FiTrash2, FiDownload, FiEye } from "react-icons/fi";
+import { FiArrowLeft, FiUpload, FiTrash2, FiDownload } from "react-icons/fi";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
 import PageContainer from "@/components/commons/PageContainer";
-import NotificationAlert from "@/components/commons/NotificationAlert/NotificationAlert";
 import { getMateriPelajaranById, updateMateriPelajaran, deleteMateriPelajaran } from "@/services/materiPelajaran.service";
 import mediaServices from "@/services/media.service";
-import { downloadFile } from "@/utils/fileUtils";
+import { downloadFile, getFileNameFromUrl } from "@/utils/fileUtils";
+
+interface FileEntry {
+  url: string;
+  name: string;
+}
 
 interface Materi {
   _id: string;
   judul: string;
   konten: {
     teks: string;
-    files: Array<string | {url: string; name: string}>;
+    files: Array<string | FileEntry>;
   };
   order: number;
   createdAt: string;
@@ -29,340 +34,180 @@ interface PropTypes {
   role: MateriDetailRole;
 }
 
+/** Older rows stored a bare URL string; newer ones store `{ url, name }`. */
+const toFileEntry = (file: string | FileEntry): FileEntry =>
+  typeof file === "string" ? { url: file, name: getFileNameFromUrl(file) } : file;
+
+/** Cloudinary drops the extension for raw uploads, so put it back from the folder. */
+const EXTENSION_BY_FOLDER: Array<[string, string[]]> = [
+  ["/documents/word/", [".docx"]],
+  ["/documents/pdf/", [".pdf"]],
+  ["/documents/excel/", [".xlsx"]],
+  ["/documents/presentations/", [".pptx", ".ppt"]],
+];
+
+const withExtension = ({ url, name }: FileEntry) => {
+  const match = EXTENSION_BY_FOLDER.find(([folder]) => url.includes(folder));
+  if (!match) return name;
+
+  const [, extensions] = match;
+  const alreadyHasOne = extensions.some((ext) => name.toLowerCase().endsWith(ext));
+  return alreadyHasOne ? name : name + extensions[0];
+};
+
 const MateriPelajaranDetail: React.FC<PropTypes> = ({ role }) => {
   const router = useRouter();
   const { id, materiId } = router.query;
   const { data: session } = useSession();
+  const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [deletingFileId, setDeletingFileId] = useState<string | null>(null);
-  const [uploadingFileName, setUploadingFileName] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [materi, setMateri] = useState<Materi | null>(null);
+  const materiKey = ["materi", id, materiId] as const;
+
+  const { data: materi = null, isLoading: loading } = useQuery({
+    queryKey: materiKey,
+    queryFn: async (): Promise<Materi | null> =>
+      (await getMateriPelajaranById(id as string, materiId as string))?.data ?? null,
+    enabled: !!id && !!materiId,
+  });
+
   const [kontenTeks, setKontenTeks] = useState("");
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isStudentView, setIsStudentView] = useState(false);
-  
+
   const hasPermission = session?.user?.role === 'admin' || session?.user?.role === 'guru';
 
+  // Seed the editor once per materi — a refetch after uploading a file must not
+  // wipe text the user has typed but not saved yet.
+  const seededId = useRef<string | null>(null);
   useEffect(() => {
-    if (id) {
-      localStorage.setItem('currentMataPelajaranId', id as string);
-    }
-    
-    const fetchData = async () => {
-      if (!materiId) return;
-      
-      try {
-        setLoading(true);
-        
-        const materiResponse = await getMateriPelajaranById(materiId as string);
-        
-        if (materiResponse.data) {
-          setMateri(materiResponse.data);
-          setKontenTeks(materiResponse.data.konten.teks || "");
-        }
-        
-        setError(null);
-      } catch (err: any) {
-        console.error("Error fetching materi data:", err);
-        setError(err.message || "Gagal memuat data materi");
-      } finally {
-        setLoading(false);
-      }
-    };
+    if (!materi || seededId.current === materi._id) return;
+    seededId.current = materi._id;
+    setKontenTeks(materi.konten.teks || "");
+  }, [materi]);
 
-    fetchData();
-  }, [materiId, id]);
+  const invalidateMateri = () => queryClient.invalidateQueries({ queryKey: materiKey });
+
+  /** Every write is the same PUT with a rebuilt `konten`. */
+  const saveKonten = (konten: { teks: string; files: FileEntry[] }) =>
+    updateMateriPelajaran(id as string, materi!._id, { ...materi, konten });
+
+  const currentFiles = (materi?.konten.files || []).map(toFileEntry);
+
+  const saveContentMutation = useMutation({
+    mutationFn: () => saveKonten({ teks: kontenTeks, files: currentFiles }),
+    onSuccess: () => {
+      toast.success("Konten berhasil disimpan!", {
+        description: "Perubahan konten materi telah berhasil disimpan.",
+        duration: 3000
+      });
+      invalidateMateri();
+    },
+    onError: (err: Error) => {
+      console.error("Error saving content:", err);
+      toast.error("Gagal menyimpan konten", {
+        description: err.message || "Terjadi kesalahan saat menyimpan konten.",
+        duration: 5000
+      });
+    },
+  });
+
+  const deleteMateriMutation = useMutation({
+    mutationFn: () => deleteMateriPelajaran(id as string, materi!._id),
+    onSuccess: () => {
+      toast.success("Materi berhasil dihapus!", {
+        description: "Materi pelajaran telah berhasil dihapus.",
+        duration: 3000
+      });
+      router.push(`/${role}/matapelajaran/${id}`);
+    },
+    onError: (err: Error) => {
+      console.error("Error deleting material:", err);
+      toast.error("Gagal menghapus materi", {
+        description: err.message || "Terjadi kesalahan saat menghapus materi.",
+        duration: 5000
+      });
+      setIsDeleteModalOpen(false);
+    },
+  });
+
+  const uploadFileMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const response = await mediaServices.uploadSingle(file);
+      const url = response?.data?.data?.url;
+      if (!url) throw new Error("Server tidak mengembalikan URL file");
+
+      return saveKonten({
+        teks: materi!.konten.teks,
+        files: [...currentFiles, { url, name: file.name }],
+      });
+    },
+    onSuccess: () => {
+      toast.success("File berhasil diunggah!", {
+        description: "File telah berhasil ditambahkan ke materi.",
+        duration: 3000
+      });
+      invalidateMateri();
+    },
+    onError: (err: Error) => {
+      console.error("Error uploading file:", err);
+      toast.error("Gagal mengunggah file", {
+        description: err.message || "Terjadi kesalahan saat mengunggah file.",
+        duration: 5000
+      });
+    },
+    onSettled: () => {
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    },
+  });
+
+  const deleteFileMutation = useMutation({
+    mutationFn: async (fileUrl: string) => {
+      await mediaServices.remove(fileUrl);
+      return saveKonten({
+        teks: materi!.konten.teks,
+        files: currentFiles.filter((entry) => entry.url !== fileUrl),
+      });
+    },
+    onSuccess: () => {
+      toast.success("File berhasil dihapus!", { duration: 3000 });
+      invalidateMateri();
+    },
+    onError: (err: Error) => {
+      console.error("Error deleting file:", err);
+      toast.error("Gagal menghapus file", {
+        description: err.message || "Terjadi kesalahan saat menghapus file.",
+        duration: 5000
+      });
+    },
+  });
 
   const handleBack = () => {
     router.push(`/${role}/matapelajaran/${id}?tab=materi`);
   };
 
-  const handleSaveContent = async () => {
-    if (!materi) return;
-    
-    try {
-      setSaving(true);
-      
-      const formattedFiles = Array.isArray(materi.konten.files)
-        ? materi.konten.files.map(file => {
-            if (typeof file === 'string') {
-              return { 
-                url: file, 
-                name: getFileNameFromUrl(file)
-              };
-            }
-            return file;
-          })
-        : [];
-      
-      const updateData = {
-        ...materi,
-        konten: {
-          ...materi.konten,
-          teks: kontenTeks,
-          files: formattedFiles
-        }
-      };
-      
-      await updateMateriPelajaran(materi._id, updateData);
-      
-      setMateri({
-        ...materi,
-        konten: {
-          ...materi.konten,
-          teks: kontenTeks,
-          files: formattedFiles
-        }
-      });
-      
-      toast.success("Konten berhasil disimpan!", {
-        description: "Perubahan konten materi telah berhasil disimpan.",
-        duration: 3000
-      });
-    } catch (err: any) {
-      console.error("Error saving content:", err);
-      
-      toast.error("Gagal menyimpan konten", {
-        description: err.message || "Terjadi kesalahan saat menyimpan konten.",
-        duration: 5000
-      });
-      
-      setError(err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const toggleStudentView = () => {
-    setIsStudentView(!isStudentView);
-  };
-
-  const handleDeleteMaterial = async () => {
-    if (!materi) return;
-    
-    try {
-      setDeleting(true);
-      
-      await deleteMateriPelajaran(materi._id);
-      
-      toast.success("Materi berhasil dihapus!", {
-        description: "Materi pelajaran telah berhasil dihapus.",
-        duration: 3000
-      });
-      
-      router.push(`/${role}/matapelajaran/${id}`);
-    } catch (err: any) {
-      console.error("Error deleting material:", err);
-      
-      toast.error("Gagal menghapus materi", {
-        description: err.message || "Terjadi kesalahan saat menghapus materi.",
-        duration: 5000
-      });
-      
-      setError(err.message);
-      setIsDeleteModalOpen(false);
-    } finally {
-      setDeleting(false);
-    }
-  };
-
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    
     if (!file || !materi) {
       toast.error("Tidak ada file yang dipilih");
       return;
     }
-    
-    try {
-      setUploading(true);
-      setUploadingFileName(file.name);
-      
-      const response = await mediaServices.uploadSingle(file);
-      
-      if (response.data && response.data.data) {
-        const fileUrl = response.data.data.url;
-        const fileName = file.name;
-        
-        const newFileObject = {
-          url: fileUrl,
-          name: fileName
-        };
-        
-        const currentFiles = materi.konten.files || [];
-        const updatedFilesForBackend = [
-          ...currentFiles.map(file => {
-            if (typeof file === 'string') {
-              return { 
-                url: file, 
-                name: getFileNameFromUrl(file)
-              };
-            }
-            return file;
-          }),
-          newFileObject
-        ];
-        
-        const updateData = {
-          ...materi,
-          konten: {
-            ...materi.konten,
-            files: updatedFilesForBackend
-          }
-        };
-        
-        await updateMateriPelajaran(materi._id, updateData);
-        
-        setMateri({
-          ...materi,
-          konten: {
-            ...materi.konten,
-            files: updatedFilesForBackend
-          }
-        });
-        
-        toast.success("File berhasil diunggah!", {
-          description: "File telah berhasil ditambahkan ke materi.",
-          duration: 3000
-        });
-      }
-    } catch (err: any) {
-      console.error("Error uploading file:", err);
-      
-      toast.error("Gagal mengunggah file", {
-        description: err.message || "Terjadi kesalahan saat mengunggah file.",
-        duration: 5000
-      });
-      
-      setError(err.message);
-    } finally {
-      setUploading(false);
-      setUploadingFileName(null);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
-    }
+    uploadFileMutation.mutate(file);
   };
 
   const triggerFileInput = () => {
     fileInputRef.current?.click();
   };
 
-  const handleDeleteFile = async (fileObj: any) => {
-    if (!materi) return;
-    
-    try {
-      const fileUrl = typeof fileObj === 'string' ? fileObj : fileObj.url;
-      
-      setDeletingFileId(fileUrl);
-      
-      await mediaServices.remove(fileUrl);
-      
-      const updatedFiles = Array.isArray(materi.konten.files) 
-        ? materi.konten.files.filter(file => {
-            if (typeof file === 'string') {
-              return file !== fileUrl;
-            }
-            return file.url !== fileUrl;
-          })
-        : [];
-      
-      const formattedFiles = updatedFiles.map(file => {
-        if (typeof file === 'string') {
-          return { 
-            url: file, 
-            name: getFileNameFromUrl(file)
-          };
-        }
-        return file;
-      });
-      
-      const updateData = {
-        ...materi,
-        konten: {
-          ...materi.konten,
-          files: formattedFiles
-        }
-      };
-      
-      await updateMateriPelajaran(materi._id, updateData);
-      
-      setMateri({
-        ...materi,
-        konten: {
-          ...materi.konten,
-          files: formattedFiles
-        }
-      });
-      
-      toast.success("File berhasil dihapus!", {
-        duration: 3000
-      });
-    } catch (err: any) {
-      console.error("Error deleting file:", err);
-      
-      toast.error("Gagal menghapus file", {
-        description: err.message || "Terjadi kesalahan saat menghapus file.",
-        duration: 5000
-      });
-      
-      setError(err.message);
-    } finally {
-      setDeletingFileId(null);
-    }
-  };
-
-  const getFileNameFromUrl = (fileUrl: string) => {
-    if (typeof fileUrl !== 'string') return 'File';
-    
-    const urlParts = fileUrl.split('/');
-    const fullFileName = urlParts[urlParts.length - 1];
-    
-    let fileName = decodeURIComponent(fullFileName);
-    const timestampRegex = /^\d+_/;
-    fileName = fileName.replace(timestampRegex, '');
-    
-    fileName = fileName.replace(/_/g, ' ');
-    
-    return fileName;
-  };
-
-  const handleDownloadFile = (file: any) => {
-    const fileUrl = typeof file === 'string' ? file : file.url;
-    
-    let fileName: string;
-    
-    if (typeof file === 'string') {
-      fileName = getFileNameFromUrl(file);
-    } else if (file.name) {
-      fileName = file.name;
-      
-      if (fileUrl.includes('/documents/word/') && !fileName.toLowerCase().endsWith('.docx')) {
-        fileName += '.docx';
-      } else if (fileUrl.includes('/documents/pdf/') && !fileName.toLowerCase().endsWith('.pdf')) {
-        fileName += '.pdf';
-      } else if (fileUrl.includes('/documents/excel/') && !fileName.toLowerCase().endsWith('.xlsx')) {
-        fileName += '.xlsx';
-      } else if (fileUrl.includes('/documents/presentations/') && 
-                !fileName.toLowerCase().endsWith('.pptx') && 
-                !fileName.toLowerCase().endsWith('.ppt')) {
-        fileName += '.pptx';
-      }
-    } else {
-      fileName = 'file';
-    }
-    
-    downloadFile(fileUrl, fileName);
+  const handleDownloadFile = (file: string | FileEntry) => {
+    const entry = toFileEntry(file);
+    downloadFile(entry.url, withExtension(entry));
   };
 
   const renderFileList = () => {
-    if (!materi?.konten.files || materi.konten.files.length === 0) {
+    const uploadingFile = uploadFileMutation.isPending ? uploadFileMutation.variables : null;
+
+    if (currentFiles.length === 0 && !uploadingFile) {
       return (
         <div className="text-center text-gray-500 py-4">
           Tidak ada file yang dilampirkan.
@@ -370,68 +215,58 @@ const MateriPelajaranDetail: React.FC<PropTypes> = ({ role }) => {
       );
     }
 
-    const files = [...materi.konten.files];
-    
-    if (uploading && uploadingFileName) {
-      files.push({
-        url: "uploading",
-        name: uploadingFileName
-      });
-    }
-
     return (
       <div className="space-y-3">
-        {files.map((file, index) => {
-          const fileUrl = typeof file === 'string' ? file : file.url;
-          const fileName = typeof file === 'string' ? getFileNameFromUrl(file) : file.name;
-          
-          const isDeleting = deletingFileId === fileUrl;
-          
-          const isUploading = fileUrl === "uploading";
-          
+        {currentFiles.map((file, index) => {
+          const isDeleting = deleteFileMutation.isPending && deleteFileMutation.variables === file.url;
+
           return (
             <div key={index} className="flex flex-col p-3 border rounded">
               <div className="w-full mb-2">
-                <span className="text-sm font-medium break-all">{fileName}</span>
-                {isUploading && (
-                  <div className="mt-1">
-                    <Spinner size="sm" color="primary" labelColor="primary" label="Sedang mengunggah..." />
-                  </div>
-                )}
+                <span className="text-sm font-medium break-all">{file.name}</span>
               </div>
-              
-              {!isUploading && (
-                <div className="flex flex-wrap gap-2">
+
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  color="primary"
+                  variant="flat"
+                  startContent={<FiDownload size={16} />}
+                  onPress={() => handleDownloadFile(file)}
+                  isDisabled={isDeleting}
+                  className="min-w-[100px] flex-grow"
+                >
+                  Unduh
+                </Button>
+                {hasPermission && (
                   <Button
                     size="sm"
-                    color="primary"
+                    color="danger"
                     variant="flat"
-                    startContent={<FiDownload size={16} />}
-                    onPress={() => handleDownloadFile(file)}
+                    startContent={isDeleting ? null : <FiTrash2 size={16} />}
+                    onPress={() => deleteFileMutation.mutate(file.url)}
+                    isLoading={isDeleting}
                     isDisabled={isDeleting}
                     className="min-w-[100px] flex-grow"
                   >
-                    Unduh
+                    {isDeleting ? "" : "Hapus"}
                   </Button>
-                  {hasPermission && (
-                    <Button
-                      size="sm"
-                      color="danger"
-                      variant="flat"
-                      startContent={isDeleting ? null : <FiTrash2 size={16} />}
-                      onPress={() => handleDeleteFile(file)}
-                      isLoading={isDeleting}
-                      isDisabled={isDeleting}
-                      className="min-w-[100px] flex-grow"
-                    >
-                      {isDeleting ? "" : "Hapus"}
-                    </Button>
-                  )}
-                </div>
-              )}
+                )}
+              </div>
             </div>
           );
         })}
+
+        {uploadingFile && (
+          <div className="flex flex-col p-3 border rounded">
+            <div className="w-full mb-2">
+              <span className="text-sm font-medium break-all">{uploadingFile.name}</span>
+              <div className="mt-1">
+                <Spinner size="sm" color="primary" labelColor="primary" label="Sedang mengunggah..." />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -444,7 +279,7 @@ const MateriPelajaranDetail: React.FC<PropTypes> = ({ role }) => {
         <Card>
           <CardBody className="p-6">
             <h2 className="text-xl font-semibold mb-4">Materi: {materi.judul}</h2>
-            
+
             <div className="prose max-w-none mb-6">
               {materi.konten.teks ? (
                 <div className="whitespace-pre-wrap">{materi.konten.teks}</div>
@@ -452,29 +287,24 @@ const MateriPelajaranDetail: React.FC<PropTypes> = ({ role }) => {
                 <p className="text-gray-500">Tidak ada konten teks.</p>
               )}
             </div>
-            
-            {materi.konten.files && materi.konten.files.length > 0 && (
+
+            {currentFiles.length > 0 && (
               <div className="mt-6">
                 <h3 className="text-lg font-semibold mb-3">File Materi</h3>
                 <div className="flex flex-wrap gap-2">
-                  {materi.konten.files.map((file, index) => {
-                    const fileUrl = typeof file === 'string' ? file : file.url;
-                    const fileName = typeof file === 'string' ? getFileNameFromUrl(file) : file.name;
-                    
-                    return (
-                      <Button
-                        key={index}
-                        size="sm"
-                        variant="flat"
-                        color="primary"
-                        startContent={<FiDownload size={16} />}
-                        onPress={() => handleDownloadFile(file)}
-                        className="mb-2 min-w-[120px] flex-grow xs:flex-grow-0"
-                      >
-                        {fileName}
-                      </Button>
-                    );
-                  })}
+                  {currentFiles.map((file, index) => (
+                    <Button
+                      key={index}
+                      size="sm"
+                      variant="flat"
+                      color="primary"
+                      startContent={<FiDownload size={16} />}
+                      onPress={() => handleDownloadFile(file)}
+                      className="mb-2 min-w-[120px] flex-grow xs:flex-grow-0"
+                    >
+                      {file.name}
+                    </Button>
+                  ))}
                 </div>
               </div>
             )}
@@ -490,7 +320,7 @@ const MateriPelajaranDetail: React.FC<PropTypes> = ({ role }) => {
         <Card>
           <CardBody className="p-6">
             <h2 className="text-xl font-semibold mb-4">Konten Materi</h2>
-            
+
             <Textarea
               minRows={8}
               placeholder="Konten materi..."
@@ -499,13 +329,13 @@ const MateriPelajaranDetail: React.FC<PropTypes> = ({ role }) => {
               disabled={!hasPermission}
               className="mb-4"
             />
-            
+
             {hasPermission && (
               <div className="flex justify-end">
                 <Button
                   color="primary"
-                  onPress={handleSaveContent}
-                  isLoading={saving}
+                  onPress={() => saveContentMutation.mutate()}
+                  isLoading={saveContentMutation.isPending}
                   size="md"
                 >
                   Simpan Perubahan
@@ -514,12 +344,12 @@ const MateriPelajaranDetail: React.FC<PropTypes> = ({ role }) => {
             )}
           </CardBody>
         </Card>
-        
+
         <Card>
           <CardBody className="p-6">
             <div className="flex flex-col xs:flex-row xs:justify-between xs:items-center mb-4 gap-2">
               <h2 className="text-xl font-semibold">File Terlampir</h2>
-              
+
               {hasPermission && (
                 <div>
                   <input
@@ -533,7 +363,7 @@ const MateriPelajaranDetail: React.FC<PropTypes> = ({ role }) => {
                     variant="flat"
                     startContent={<FiUpload size={16} />}
                     onPress={triggerFileInput}
-                    isLoading={uploading}
+                    isLoading={uploadFileMutation.isPending}
                     className="w-full xs:w-auto"
                     size="md"
                   >
@@ -542,16 +372,16 @@ const MateriPelajaranDetail: React.FC<PropTypes> = ({ role }) => {
                 </div>
               )}
             </div>
-            
+
             {hasPermission && (
               <div className="text-xs text-gray-500 mb-3">
                 <p>Format yang didukung: .pdf, .doc, .docx, .xls, .xlsx, .ppt, .pptx, .jpg, .jpeg, .png, .gif, .mp3, .wav, .mp4, .zip, .rar</p>
                 <p>Ukuran maksimal: 10MB per file</p>
               </div>
             )}
-            
+
             <Divider className="my-3" />
-            
+
             {renderFileList()}
           </CardBody>
         </Card>
@@ -562,16 +392,6 @@ const MateriPelajaranDetail: React.FC<PropTypes> = ({ role }) => {
   return (
     <DashboardLayout type={role}>
       <PageContainer className="-mt-20">
-        {error && (
-          <div className="mb-4 relative z-10">
-            <NotificationAlert
-              type="error"
-              message={error}
-              onClose={() => setError(null)}
-            />
-          </div>
-        )}
-
         {loading ? (
           <div className="flex justify-center items-center min-h-[400px]">
             <Spinner size="lg" color="primary" />
@@ -589,26 +409,26 @@ const MateriPelajaranDetail: React.FC<PropTypes> = ({ role }) => {
               >
                 Kembali
               </Button>
-              
+
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">
                   {materi?.judul || 'Detail Materi Pelajaran'}
                 </h1>
-                
+
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full sm:w-auto">
                   {hasPermission && (
                     <div className="flex items-center gap-2 w-full sm:w-auto">
                       <span className="text-sm whitespace-nowrap">Tampilan {role === "admin" ? "Admin" : "Guru"}</span>
-                      <Switch 
+                      <Switch
                         isSelected={isStudentView}
-                        onValueChange={toggleStudentView}
+                        onValueChange={setIsStudentView}
                         size="sm"
                         color="primary"
                       />
                       <span className="text-sm whitespace-nowrap">Tampilan Murid</span>
                     </div>
                   )}
-                  
+
                   {hasPermission && !isStudentView && (
                     <Button
                       color="danger"
@@ -626,7 +446,7 @@ const MateriPelajaranDetail: React.FC<PropTypes> = ({ role }) => {
             </div>
 
             {isStudentView ? renderStudentView() : renderAdminView()}
-            
+
             <Modal
               isOpen={isDeleteModalOpen}
               onClose={() => setIsDeleteModalOpen(false)}
@@ -644,10 +464,10 @@ const MateriPelajaranDetail: React.FC<PropTypes> = ({ role }) => {
                       <Button variant="flat" onPress={onClose}>
                         Batal
                       </Button>
-                      <Button 
-                        color="danger" 
-                        onPress={handleDeleteMaterial}
-                        isLoading={deleting}
+                      <Button
+                        color="danger"
+                        onPress={() => deleteMateriMutation.mutate()}
+                        isLoading={deleteMateriMutation.isPending}
                       >
                         Hapus
                       </Button>
@@ -663,4 +483,4 @@ const MateriPelajaranDetail: React.FC<PropTypes> = ({ role }) => {
   );
 };
 
-export default MateriPelajaranDetail; 
+export default MateriPelajaranDetail;

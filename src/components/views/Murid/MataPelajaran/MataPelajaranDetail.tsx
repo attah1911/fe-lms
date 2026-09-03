@@ -258,7 +258,6 @@ const MataPelajaranDetail: React.FC<MataPelajaranDetailProps> = ({ id }) => {
                     color="primary"
                     startContent={<FiEye size={14} />}
                     onPress={() => {
-                      localStorage.setItem('currentMataPelajaranId', id as string);
                       router.push(`/murid/matapelajaran/${id}/materi/${materi._id}`);
                     }}
                     className="w-full sm:w-auto"

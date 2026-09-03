@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import { Card, CardBody, Spinner, Input, Button, Pagination, Chip, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem } from '@nextui-org/react';
@@ -26,76 +27,47 @@ interface Assignment {
   createdAt: string;
 }
 
-import { PaginationMeta as PaginationData } from "../../../../types/common";
+
+const PAGE_SIZE = 6;
+
+const STATUS_ORDER: Record<Assignment['status'], number> = {
+  belum_dikerjakan: 0,
+  selesai: 1,
+};
+
+const isDeadlinePassed = (deadline: string) => new Date(deadline) < new Date();
+
+/** default order: still-open first (nearest deadline first), overdue last */
+const byUrgency = (a: Assignment, b: Assignment) => {
+  const aLate = isDeadlinePassed(a.deadline) && a.status !== 'selesai';
+  const bLate = isDeadlinePassed(b.deadline) && b.status !== 'selesai';
+  if (aLate !== bLate) return aLate ? 1 : -1;
+
+  const aPassed = isDeadlinePassed(a.deadline);
+  const bPassed = isDeadlinePassed(b.deadline);
+  if (aPassed !== bPassed) return aPassed ? 1 : -1;
+
+  return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
+};
 
 const Tugas: React.FC = () => {
   const { data: session } = useSession() as { data: SessionExtended | null };
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [errorDismissed, setErrorDismissed] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [filteredAssignments, setFilteredAssignments] = useState<Assignment[] | null>(null);
+  /** the committed search — `searchTerm` is only the input box */
+  const [appliedSearch, setAppliedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<string | null>(null);
-  const [pagination, setPagination] = useState<PaginationData>({
-    total: 0,
-    totalPages: 0,
-    current: 1,
-    size: 10
-  });
+  const [page, setPage] = useState(1);
   const router = useRouter();
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        
-        const response = await getStudentAssignments();
-        
-        const sortedAssignments = [...(response.data || [])].sort((a, b) => {
-          const aDeadlinePassed = isDeadlinePassed(a.deadline);
-          const bDeadlinePassed = isDeadlinePassed(b.deadline);
-          const aIsLate = aDeadlinePassed && a.status !== 'selesai';
-          const bIsLate = bDeadlinePassed && b.status !== 'selesai';
-          
-          if (aIsLate && !bIsLate) return 1;
-          if (!aIsLate && bIsLate) return -1;
-          
-          if (aDeadlinePassed && !bDeadlinePassed) return 1;
-          if (!aDeadlinePassed && bDeadlinePassed) return -1;
-          
-          return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
-        });
-        
-        setAssignments(sortedAssignments);
-        
-        setPagination({
-          total: response.meta?.pagination?.total || sortedAssignments.length,
-          totalPages: response.meta?.pagination?.totalPages || Math.ceil(sortedAssignments.length / 6),
-          current: response.meta?.pagination?.current || 1,
-          size: response.meta?.pagination?.size || 6
-        });
-        
-        setError(null);
-      } catch (err: any) {
-        setError(err.message || "Failed to fetch assignments data");
-        console.error("Tugas error:", err);
-        setAssignments([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (session?.user) {
-      fetchData();
-    }
-  }, [session]);
-
-  const isDeadlinePassed = (deadline: string) => {
-    const deadlineDate = new Date(deadline);
-    const now = new Date();
-    return deadlineDate < now;
-  };
+  // shares the murid dashboard's cache — revisiting this page inside the
+  // staleTime costs no request
+  const { data: assignments = [], isLoading: loading, error } = useQuery({
+    queryKey: ["studentAssignments"],
+    queryFn: async (): Promise<Assignment[]> => (await getStudentAssignments()).data || [],
+    enabled: !!session?.user,
+  });
 
   const getRemainingDays = (deadline: string) => {
     const deadlineDate = new Date(deadline);
@@ -107,115 +79,75 @@ const Tugas: React.FC = () => {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    applyFilters();
+    setAppliedSearch(searchTerm.trim());
+    setPage(1);
   };
 
   const handleClearFilters = () => {
     setSearchTerm('');
+    setAppliedSearch('');
     setStatusFilter(null);
     setSortBy(null);
-    setFilteredAssignments(null);
-    setPagination({
-      total: assignments.length,
-      totalPages: Math.ceil(assignments.length / 6),
-      current: 1,
-      size: 6
-    });
+    setPage(1);
   };
 
   const handleSortChange = (sort: string) => {
     setSortBy(sort === sortBy ? null : sort);
-    setTimeout(() => applyFilters(), 0);
-  };
-
-  const applyFilters = () => {
-    let filtered = [...assignments];
-    
-    if (searchTerm.trim()) {
-      filtered = filtered.filter(assignment => 
-        assignment.judul.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        assignment.deskripsi.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        assignment.mataPelajaran.judul.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-    
-    if (statusFilter) {
-      if (statusFilter === 'belum_dikerjakan') {
-        filtered = filtered.filter(assignment => 
-          assignment.status === 'belum_dikerjakan' && !isDeadlinePassed(assignment.deadline)
-        );
-      } else if (statusFilter === 'terlambat') {
-        filtered = filtered.filter(assignment => 
-          isDeadlinePassed(assignment.deadline) && assignment.status !== 'selesai'
-        );
-      } else {
-        filtered = filtered.filter(assignment => assignment.status === statusFilter);
-      }
-    }
-    
-    if (sortBy) {
-      switch (sortBy) {
-        case 'deadline_asc':
-          filtered.sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime());
-          break;
-        case 'deadline_desc':
-          filtered.sort((a, b) => new Date(b.deadline).getTime() - new Date(a.deadline).getTime());
-          break;
-        case 'status':
-          filtered.sort((a, b) => {
-            const statusOrder: Record<Assignment['status'], number> = {
-              'belum_dikerjakan': 0,
-              'selesai': 1
-            };
-            return statusOrder[a.status] - statusOrder[b.status];
-          });
-          break;
-      }
-    } else {
-      filtered.sort((a, b) => {
-        const aDeadlinePassed = isDeadlinePassed(a.deadline);
-        const bDeadlinePassed = isDeadlinePassed(b.deadline);
-        const aIsLate = aDeadlinePassed && a.status !== 'selesai';
-        const bIsLate = bDeadlinePassed && b.status !== 'selesai';
-        
-        if (aIsLate && !bIsLate) return 1;
-        if (!aIsLate && bIsLate) return -1;
-        
-        if (aDeadlinePassed && !bDeadlinePassed) return 1;
-        if (!aDeadlinePassed && bDeadlinePassed) return -1;
-        
-        return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
-      });
-    }
-    
-    setFilteredAssignments(filtered);
-    setPagination({
-      total: filtered.length,
-      totalPages: Math.ceil(filtered.length / 6),
-      current: 1,
-      size: 6
-    });
+    setPage(1);
   };
 
   const handleStatusFilterChange = (status: string) => {
     setStatusFilter(status === statusFilter ? null : status);
-    setTimeout(() => applyFilters(), 0);
+    setPage(1);
   };
 
-  const handlePageChange = (page: number) => {
-    setPagination(prev => ({
-      ...prev,
-      current: page
-    }));
-  };
+  // Derived on every render. This used to be `applyFilters()` writing to state
+  // behind a `setTimeout(..., 0)`, which read the *previous* sortBy/statusFilter
+  // out of a stale closure — so every filter click applied one click late.
+  const isFiltering = !!appliedSearch || !!statusFilter || !!sortBy;
 
-  const getCurrentAssignments = () => {
-    const currentAssignments = filteredAssignments !== null ? filteredAssignments : assignments;
-    const startIndex = (pagination.current - 1) * 6;
-    const endIndex = startIndex + 6;
-    
-    return currentAssignments.slice(startIndex, endIndex);
-  };
+  const visibleAssignments = (() => {
+    let filtered = [...assignments];
+
+    if (appliedSearch) {
+      const needle = appliedSearch.toLowerCase();
+      filtered = filtered.filter(assignment =>
+        assignment.judul.toLowerCase().includes(needle) ||
+        assignment.deskripsi.toLowerCase().includes(needle) ||
+        assignment.mataPelajaran.judul.toLowerCase().includes(needle)
+      );
+    }
+
+    if (statusFilter === 'belum_dikerjakan') {
+      filtered = filtered.filter(assignment =>
+        assignment.status === 'belum_dikerjakan' && !isDeadlinePassed(assignment.deadline)
+      );
+    } else if (statusFilter === 'terlambat') {
+      filtered = filtered.filter(assignment =>
+        isDeadlinePassed(assignment.deadline) && assignment.status !== 'selesai'
+      );
+    } else if (statusFilter) {
+      filtered = filtered.filter(assignment => assignment.status === statusFilter);
+    }
+
+    switch (sortBy) {
+      case 'deadline_asc':
+        return filtered.sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime());
+      case 'deadline_desc':
+        return filtered.sort((a, b) => new Date(b.deadline).getTime() - new Date(a.deadline).getTime());
+      case 'status':
+        return filtered.sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]);
+      default:
+        return filtered.sort(byUrgency);
+    }
+  })();
+
+  const totalPages = Math.ceil(visibleAssignments.length / PAGE_SIZE);
+
+  const currentPageAssignments = visibleAssignments.slice(
+    (page - 1) * PAGE_SIZE,
+    page * PAGE_SIZE
+  );
 
   const handleViewAssignment = (assignmentId: string, mataPelajaranId: string) => {
     router.push(`/murid/matapelajaran/${mataPelajaranId}/tugas/${assignmentId}`);
@@ -332,14 +264,14 @@ const Tugas: React.FC = () => {
   };
 
   const renderAssignments = () => {
-    const currentAssignments = getCurrentAssignments();
+    const currentAssignments = currentPageAssignments;
     
     if (currentAssignments.length === 0) {
       return (
         <Card>
           <CardBody className="py-8">
             <p className="text-center text-gray-500">
-              {filteredAssignments !== null 
+              {isFiltering
                 ? "Tidak ada tugas yang sesuai dengan filter Anda."
                 : "Anda belum memiliki tugas apapun."}
             </p>
@@ -356,15 +288,15 @@ const Tugas: React.FC = () => {
   };
 
   const renderPagination = () => {
-    if (pagination.totalPages <= 1) return null;
+    if (totalPages <= 1) return null;
     
     return (
       <div className="flex justify-center mt-6">
         <Pagination
-          total={pagination.totalPages}
+          total={totalPages}
           initialPage={1}
-          page={pagination.current}
-          onChange={handlePageChange}
+          page={page}
+          onChange={setPage}
         />
       </div>
     );
@@ -460,12 +392,12 @@ const Tugas: React.FC = () => {
         />
       </div>
 
-      {error && (
+      {error && !errorDismissed && (
         <div className="mb-6">
           <NotificationAlert
             type="error"
-            message={error}
-            onClose={() => setError(null)}
+            message={(error as Error).message}
+            onClose={() => setErrorDismissed(true)}
           />
         </div>
       )}
@@ -532,7 +464,7 @@ const Tugas: React.FC = () => {
                 </DropdownMenu>
               </Dropdown>
               
-              {(filteredAssignments !== null || statusFilter || sortBy) && (
+              {isFiltering && (
                 <Button onClick={handleClearFilters} variant="flat">
                   Bersihkan
                 </Button>
@@ -550,7 +482,7 @@ const Tugas: React.FC = () => {
                   color={statusFilter === 'selesai' ? 'success' : statusFilter === 'terlambat' ? 'danger' : 'warning'}
                   onClose={() => {
                     setStatusFilter(null);
-                    setTimeout(() => applyFilters(), 0);
+                    setPage(1);
                   }}
                 >
                   {statusFilter === 'belum_dikerjakan' ? 'Belum Dikerjakan' : 
@@ -568,7 +500,7 @@ const Tugas: React.FC = () => {
                   color="secondary"
                   onClose={() => {
                     setSortBy(null);
-                    setTimeout(() => applyFilters(), 0);
+                    setPage(1);
                   }}
                 >
                   {sortBy === 'deadline_asc' ? 'Deadline (Terdekat)' : 
@@ -583,11 +515,11 @@ const Tugas: React.FC = () => {
       <div className="mb-6">
         <div className="mb-4">
           <h3 className="text-lg font-semibold">
-            {filteredAssignments !== null || statusFilter ? "Hasil Filter" : "Semua Tugas"}
+            {isFiltering ? "Hasil Filter" : "Semua Tugas"}
           </h3>
-          {(filteredAssignments !== null || statusFilter) && (
+          {isFiltering && (
             <p className="text-sm text-gray-500">
-              Menampilkan {(filteredAssignments || []).length} hasil
+              Menampilkan {visibleAssignments.length} hasil
             </p>
           )}
         </div>

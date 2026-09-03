@@ -18,14 +18,8 @@ export const getMateriPelajaran = async (params?: PaginationParams) => {
   }
 };
 
-export const getMateriPelajaranById = async (id: string) => {
+export const getMateriPelajaranById = async (mataPelajaranId: string, id: string) => {
   try {
-    const mataPelajaranId = localStorage.getItem('currentMataPelajaranId');
-    
-    if (!mataPelajaranId) {
-      throw new Error("Missing mata pelajaran ID. Please navigate from the mata pelajaran page.");
-    }
-    
     const response = await instance.get(`${endpoint.MATA_PELAJARAN}/${mataPelajaranId}/materi/${id}`);
     return response.data;
   } catch (error: any) {
@@ -77,14 +71,8 @@ export const createMateriPelajaran = async (mataPelajaranId: string, data: any) 
   }
 };
 
-export const updateMateriPelajaran = async (id: string, data: any) => {
+export const updateMateriPelajaran = async (mataPelajaranId: string, id: string, data: any) => {
   try {
-    const mataPelajaranId = data.mataPelajaran || localStorage.getItem('currentMataPelajaranId');
-    
-    if (!mataPelajaranId) {
-      throw new Error("Missing mata pelajaran ID for update operation");
-    }
-    
     const response = await instance.put(`${endpoint.MATA_PELAJARAN}/${mataPelajaranId}/materi/${id}`, data);
     return response.data;
   } catch (error: any) {
@@ -97,14 +85,8 @@ export const updateMateriPelajaran = async (id: string, data: any) => {
   }
 };
 
-export const deleteMateriPelajaran = async (id: string) => {
+export const deleteMateriPelajaran = async (mataPelajaranId: string, id: string) => {
   try {
-    const mataPelajaranId = localStorage.getItem('currentMataPelajaranId');
-    
-    if (!mataPelajaranId) {
-      throw new Error("Missing mata pelajaran ID for delete operation");
-    }
-    
     const response = await instance.delete(`${endpoint.MATA_PELAJARAN}/${mataPelajaranId}/materi/${id}`);
     return response.data;
   } catch (error: any) {

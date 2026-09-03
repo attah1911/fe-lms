@@ -283,7 +283,6 @@ const MataPelajaranDetail: React.FC<PropTypes> = ({ role }) => {
                     color="primary"
                     startContent={<FiEye size={14} />}
                     onPress={() => {
-                      localStorage.setItem('currentMataPelajaranId', id as string);
                       router.push(`/${role}/matapelajaran/${id}/materi/${materi._id}`);
                     }}
                     className="w-full sm:w-auto"

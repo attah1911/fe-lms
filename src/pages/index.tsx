@@ -3,10 +3,66 @@ import PageHead from "@/components/commons/PageHead";
 import Image from "next/image";
 import Link from "next/link";
 import Logo from "@/components/commons/Logo";
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/router";
 import { FaChevronDown } from "react-icons/fa6";
+import { PiChalkboardTeacher, PiStudent } from "react-icons/pi";
+
+function DashboardFrame({
+  src,
+  alt,
+  priority = false,
+}: {
+  src: string;
+  alt: string;
+  priority?: boolean;
+}) {
+  return (
+    <div className="overflow-hidden rounded-xl bg-white ring-1 ring-gray-900/5 shadow-[0_24px_60px_-15px_rgba(37,99,235,0.35)]">
+      <div className="flex items-center gap-1.5 border-b border-gray-100 bg-gray-50 px-2.5 py-2">
+        <span className="h-2 w-2 rounded-full bg-red-400/70" />
+        <span className="h-2 w-2 rounded-full bg-amber-400/70" />
+        <span className="h-2 w-2 rounded-full bg-green-400/70" />
+        <div className="ml-2 h-3 flex-1 rounded border border-gray-100 bg-white" />
+      </div>
+      <Image
+        src={src}
+        alt={alt}
+        width={1440}
+        height={900}
+        className="h-auto w-full"
+        priority={priority}
+      />
+    </div>
+  );
+}
+
+function PreviewBadge({
+  icon,
+  title,
+  subtitle,
+  className = "",
+}: {
+  icon: ReactNode;
+  title: string;
+  subtitle: string;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`absolute z-30 items-center gap-2.5 rounded-xl bg-white/95 px-3.5 py-2.5 shadow-[0_12px_30px_-10px_rgba(30,58,138,0.45)] ring-1 ring-gray-900/5 backdrop-blur ${className}`}
+    >
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50">
+        {icon}
+      </span>
+      <div className="leading-tight">
+        <p className="text-sm font-semibold text-gray-800">{title}</p>
+        <p className="text-xs text-gray-500">{subtitle}</p>
+      </div>
+    </div>
+  );
+}
 
 export default function Home() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -208,23 +264,38 @@ export default function Home() {
                 </Link>
               </div>
             </div>
-            <div className="w-full mb-8 md:mb-0 md:w-1/2 flex justify-center md:justify-end">
-              <figure className="w-full max-w-xl overflow-hidden rounded-xl bg-white ring-1 ring-gray-900/5 shadow-[0_24px_60px_-15px_rgba(37,99,235,0.35)]">
-                <div className="flex items-center gap-1.5 border-b border-gray-100 bg-gray-50 px-3 py-2.5">
-                  <span className="h-2.5 w-2.5 rounded-full bg-red-400/70" />
-                  <span className="h-2.5 w-2.5 rounded-full bg-amber-400/70" />
-                  <span className="h-2.5 w-2.5 rounded-full bg-green-400/70" />
-                  <div className="ml-3 h-4 flex-1 rounded border border-gray-100 bg-white" />
+            <div className="w-full mb-8 md:mb-0 md:w-1/2">
+              <div className="relative mx-auto w-full max-w-xl pb-14 sm:pb-20">
+                {/* Preview guru — bingkai utama */}
+                <div className="relative z-10 w-[88%]">
+                  <DashboardFrame
+                    src="/images/general/dashboardGuru-preview.png"
+                    alt="Tampilan dashboard guru: daftar mata pelajaran yang diajar, jumlah kelas, dan catatan pengajar"
+                    priority
+                  />
                 </div>
-                <Image
-                  src="/images/general/dashboard-preview.png"
-                  alt="Tampilan dashboard guru: daftar mata pelajaran yang diajar, jumlah kelas, dan catatan pengajar"
-                  width={1440}
-                  height={900}
-                  className="w-full h-auto"
-                  priority
+
+                {/* Preview murid — ditumpuk di depan, kanan bawah */}
+                <div className="absolute bottom-0 right-0 z-20 w-[52%] rounded-2xl bg-white p-1 shadow-[0_18px_45px_-12px_rgba(30,58,138,0.5)]">
+                  <DashboardFrame
+                    src="/images/general/dashboardMurid-preview.png"
+                    alt="Tampilan dashboard murid: mata pelajaran yang diikuti, tugas berjalan, dan nilai terbaru"
+                  />
+                </div>
+
+                <PreviewBadge
+                  className="-left-3 top-12 hidden lg:flex"
+                  icon={<PiChalkboardTeacher className="h-5 w-5 text-blue-600" />}
+                  title="Dashboard Guru"
+                  subtitle="Kelola materi, tugas & nilai"
                 />
-              </figure>
+                <PreviewBadge
+                  className="-right-3 bottom-8 hidden lg:flex"
+                  icon={<PiStudent className="h-5 w-5 text-blue-600" />}
+                  title="Dashboard Murid"
+                  subtitle="Belajar & kumpulkan tugas"
+                />
+              </div>
             </div>
           </div>
         </section>

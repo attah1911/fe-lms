@@ -61,7 +61,7 @@ const MateriDetail: React.FC<MateriDetailProps> = ({ mataPelajaranId, materiId }
           });
         }
         
-        const response = await getMateriPelajaranById(materiId);
+        const response = await getMateriPelajaranById(mataPelajaranId, materiId);
         if (response && response.data) {
           setMateri(response.data);
         }

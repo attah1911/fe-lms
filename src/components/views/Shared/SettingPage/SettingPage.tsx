@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import {
   Card,
@@ -21,7 +22,7 @@ import DashboardLayout from "@/components/layouts/DashboardLayout";
 import PageContainer from "@/components/commons/PageContainer";
 import PageHeader from "@/components/commons/PageHeader";
 import authServices from "@/services/auth.service";
-import { IProfile } from "@/types/Profile";
+import { useProfile } from "@/hooks/useProfile";
 import mediaServices from "@/services/media.service";
 import guruService from "@/services/guru.service";
 import studentServices from "@/services/student.service";
@@ -105,11 +106,9 @@ interface PropTypes {
 const SettingPage: React.FC<PropTypes> = ({ role }) => {
   const roleData = ROLE_DATA[role];
   const { data: session, update: updateSession } = useSession() as { data: SessionExtended | null, update: any };
+  const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [profile, setProfile] = useState<IProfile | null>(null);
   const [updateData, setUpdateData] = useState<UpdateData>({
     fullName: "",
     username: "",
@@ -129,58 +128,44 @@ const SettingPage: React.FC<PropTypes> = ({ role }) => {
   const [isNewPasswordVisible, setIsNewPasswordVisible] = useState(false);
   const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = useState(false);
 
-  const fetchProfileAndRoleData = async () => {
-    try {
-      setLoading(true);
+  // shared with every dashboard — one `GET /auth/me` for the whole app
+  const { profile, isProfileLoading } = useProfile();
 
-      const profileResponse = await authServices.getProfile();
+  const { data: fetchedRoleData, isLoading: isRoleDataLoading } = useQuery({
+    queryKey: ["roleData", role],
+    queryFn: async (): Promise<RoleData> => {
+      const response = await roleData!.fetch();
+      const data = response?.data?.data || response?.data || {};
+      return Object.fromEntries(
+        Object.keys(roleData!.empty).map((key) => [key, data[key] || ""])
+      );
+    },
+    enabled: !!session?.user && !!roleData,
+  });
 
-      if (profileResponse && profileResponse.data) {
-        const profileData = profileResponse.data.data || profileResponse.data;
-        setProfile(profileData);
-        setUpdateData({
-          fullName: profileData.fullName || "",
-          username: profileData.username || "",
-          email: profileData.email || "",
-        });
+  const loading = isProfileLoading || (!!roleData && isRoleDataLoading);
 
-        if (profileData.profilePicture) {
-          setImagePreview(profileData.profilePicture);
-        }
-      }
-
-      if (!roleData) {
-        setLoading(false);
-        return;
-      }
-
-      try {
-        const response = await roleData.fetch();
-
-        if (response && response.data) {
-          const data = response.data.data || response.data;
-          setRoleUpdateData(
-            Object.fromEntries(
-              Object.keys(roleData.empty).map((key) => [key, data[key] || ""])
-            )
-          );
-        }
-      } catch (roleErr: any) {
-        console.error(`Error fetching ${role} data:`, roleErr);
-        setRoleUpdateData(roleData.empty);
-      }
-    } catch (err: any) {
-      console.error("Error fetching profile:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Seed each form once. Refetches (after saving, say) must not clobber fields
+  // the user is still editing.
+  const seededProfile = useRef(false);
   useEffect(() => {
-    if (session?.user) {
-      fetchProfileAndRoleData();
-    }
-  }, [session]);
+    if (!profile || seededProfile.current) return;
+    seededProfile.current = true;
+
+    setUpdateData({
+      fullName: profile.fullName || "",
+      username: profile.username || "",
+      email: profile.email || "",
+    });
+    if (profile.profilePicture) setImagePreview(profile.profilePicture);
+  }, [profile]);
+
+  const seededRoleData = useRef(false);
+  useEffect(() => {
+    if (!fetchedRoleData || seededRoleData.current) return;
+    seededRoleData.current = true;
+    setRoleUpdateData(fetchedRoleData);
+  }, [fetchedRoleData]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -205,106 +190,85 @@ const SettingPage: React.FC<PropTypes> = ({ role }) => {
     reader.readAsDataURL(file);
   };
 
-  const handleProfileUpdate = async () => {
-    try {
-      setSaving(true);
-
-      if (!updateData.fullName || !updateData.username || !updateData.email) {
-        toast.error('Mohon isi semua field profil');
-        setSaving(false);
-        return;
-      }
-
-      const usernameChanged = updateData.username !== profile?.username;
-      const emailChanged = updateData.email !== profile?.email;
-
+  const profileMutation = useMutation({
+    mutationFn: async () => {
       let profilePicture = profile?.profilePicture || undefined;
+
       if (selectedImage) {
         try {
           const uploadResponse = await mediaServices.uploadSingle(selectedImage);
-          if (uploadResponse && uploadResponse.data && uploadResponse.data.data) {
-            profilePicture = uploadResponse.data.data.url;
-          } else {
-            profilePicture = imagePreview || undefined;
-          }
+          profilePicture = uploadResponse?.data?.data?.url || imagePreview || undefined;
         } catch (uploadErr) {
           console.error("Failed to upload image:", uploadErr);
           toast.error('Gagal mengupload gambar');
         }
       }
 
-      try {
-        const response = await authServices.updateProfile({
-          ...updateData,
-          profilePicture,
-        });
-
-        if (response && response.data) {
-          if (session?.user) {
-            await updateSession({
-              ...session,
-              user: {
-                ...session.user,
-                fullName: updateData.fullName,
-                username: updateData.username,
-                email: updateData.email,
-                profilePicture: profilePicture || session.user.profilePicture,
-              }
-            });
+      await authServices.updateProfile({ ...updateData, profilePicture });
+      return profilePicture;
+    },
+    onSuccess: async (profilePicture: string | undefined) => {
+      if (session?.user) {
+        await updateSession({
+          ...session,
+          user: {
+            ...session.user,
+            fullName: updateData.fullName,
+            username: updateData.username,
+            email: updateData.email,
+            profilePicture: profilePicture || session.user.profilePicture,
           }
-
-          toast.success('Profil berhasil diperbarui');
-          fetchProfileAndRoleData();
-        }
-      } catch (updateErr: any) {
-        console.error("Error updating profile:", updateErr);
-
-        if (usernameChanged) {
-          toast.error('Username mungkin sudah digunakan oleh pengguna lain');
-        } else if (emailChanged) {
-          toast.error('Email mungkin sudah digunakan oleh pengguna lain');
-        } else {
-          toast.error(updateErr.response?.data?.message || updateErr.message || 'Gagal memperbarui profil');
-        }
+        });
       }
-    } catch (err: any) {
-      console.error("General error:", err);
-      toast.error('Terjadi kesalahan saat memperbarui profil');
-    } finally {
-      setSaving(false);
+
+      toast.success('Profil berhasil diperbarui');
+      setSelectedImage(null);
+      queryClient.invalidateQueries({ queryKey: ["profile"] });
+    },
+    onError: (err: any) => {
+      console.error("Error updating profile:", err);
+
+      // the backend only reports a conflict, so point at whichever unique
+      // field the user actually changed
+      if (updateData.username !== profile?.username) {
+        toast.error('Username mungkin sudah digunakan oleh pengguna lain');
+      } else if (updateData.email !== profile?.email) {
+        toast.error('Email mungkin sudah digunakan oleh pengguna lain');
+      } else {
+        toast.error(err.response?.data?.message || err.message || 'Gagal memperbarui profil');
+      }
+    },
+  });
+
+  const handleProfileUpdate = () => {
+    if (!updateData.fullName || !updateData.username || !updateData.email) {
+      toast.error('Mohon isi semua field profil');
+      return;
     }
+    profileMutation.mutate();
   };
 
-  const handleRoleDataUpdate = async () => {
+  const roleDataMutation = useMutation({
+    mutationFn: () => roleData!.update(roleUpdateData),
+    onSuccess: () => {
+      toast.success(roleData!.successMessage);
+      queryClient.invalidateQueries({ queryKey: ["roleData", role] });
+    },
+    onError: (err: any) => {
+      console.error(`Error updating ${role} data:`, err);
+      toast.error(err.response?.data?.message || err.message || roleData!.errorMessage);
+    },
+  });
+
+  const handleRoleDataUpdate = () => {
     if (!roleData) return;
 
-    try {
-      setSaving(true);
-
-      const validationError = roleData.validate(roleUpdateData);
-      if (validationError) {
-        toast.error(validationError);
-        setSaving(false);
-        return;
-      }
-
-      try {
-        const response = await roleData.update(roleUpdateData);
-
-        if (response && response.data) {
-          toast.success(roleData.successMessage);
-          fetchProfileAndRoleData();
-        }
-      } catch (updateErr: any) {
-        console.error(`Error updating ${role} data:`, updateErr);
-        toast.error(updateErr.response?.data?.message || updateErr.message || roleData.errorMessage);
-      }
-    } catch (err: any) {
-      console.error("General error:", err);
-      toast.error(`Terjadi kesalahan saat memperbarui ${roleData.tabTitle.toLowerCase()}`);
-    } finally {
-      setSaving(false);
+    const validationError = roleData.validate(roleUpdateData);
+    if (validationError) {
+      toast.error(validationError);
+      return;
     }
+    roleDataMutation.mutate();
   };
 
   const validatePassword = () => {
@@ -341,60 +305,44 @@ const SettingPage: React.FC<PropTypes> = ({ role }) => {
     }
   };
 
-  const handlePasswordUpdate = async () => {
-    try {
-      setSaving(true);
+  const passwordMutation = useMutation({
+    mutationFn: () =>
+      authServices.changePassword({
+        currentPassword: passwordData.currentPassword,
+        newPassword: passwordData.newPassword,
+      }),
+    onSuccess: () => {
+      toast.success('Password berhasil diubah');
+      setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" });
+      setPasswordErrors({});
+    },
+    onError: (err: any) => {
+      console.error("Error changing password:", err);
 
-      if (!validatePassword()) {
-        setSaving(false);
-        return;
+      const status = err.response?.status;
+      const message = err.response?.data?.meta?.message;
+
+      if (status === 401) {
+        // the current password is wrong
+        setPasswordErrors(prev => ({
+          ...prev,
+          currentPassword: message || 'Password yang Anda masukkan tidak valid'
+        }));
+      } else if (status === 400) {
+        // the new password broke one of the backend's rules
+        setPasswordErrors(prev => ({
+          ...prev,
+          newPassword: message || 'Password baru tidak memenuhi ketentuan'
+        }));
+      } else {
+        toast.error(message || 'Gagal mengubah password');
       }
+    },
+  });
 
-      try {
-        const response = await authServices.changePassword({
-          currentPassword: passwordData.currentPassword,
-          newPassword: passwordData.newPassword,
-        });
-
-        if (response && response.data) {
-          toast.success('Password berhasil diubah');
-
-          setPasswordData({
-            currentPassword: "",
-            newPassword: "",
-            confirmPassword: "",
-          });
-
-          setPasswordErrors({});
-        }
-      } catch (updateErr: any) {
-        console.error("Error changing password:", updateErr);
-
-        const status = updateErr.response?.status;
-        const message = updateErr.response?.data?.meta?.message;
-
-        if (status === 401) {
-          // the current password is wrong
-          setPasswordErrors(prev => ({
-            ...prev,
-            currentPassword: message || 'Password yang Anda masukkan tidak valid'
-          }));
-        } else if (status === 400) {
-          // the new password broke one of the backend's rules
-          setPasswordErrors(prev => ({
-            ...prev,
-            newPassword: message || 'Password baru tidak memenuhi ketentuan'
-          }));
-        } else {
-          toast.error(message || 'Gagal mengubah password');
-        }
-      }
-    } catch (err: any) {
-      console.error("General password error:", err);
-      toast.error('Terjadi kesalahan saat mengubah password');
-    } finally {
-      setSaving(false);
-    }
+  const handlePasswordUpdate = () => {
+    if (!validatePassword()) return;
+    passwordMutation.mutate();
   };
 
   const triggerFileInput = () => {
@@ -500,7 +448,7 @@ const SettingPage: React.FC<PropTypes> = ({ role }) => {
                           color="primary"
                           startContent={<FiSave />}
                           onClick={handleProfileUpdate}
-                          isLoading={saving}
+                          isLoading={profileMutation.isPending}
                         >
                           Simpan Perubahan
                         </Button>
@@ -595,7 +543,7 @@ const SettingPage: React.FC<PropTypes> = ({ role }) => {
                       color="primary"
                       startContent={<FiSave />}
                       onClick={handleRoleDataUpdate}
-                      isLoading={saving}
+                      isLoading={roleDataMutation.isPending}
                     >
                       {roleData.saveLabel}
                     </Button>
@@ -678,7 +626,7 @@ const SettingPage: React.FC<PropTypes> = ({ role }) => {
                       color="primary"
                       startContent={<FiSave />}
                       onClick={handlePasswordUpdate}
-                      isLoading={saving}
+                      isLoading={passwordMutation.isPending}
                     >
                       Perbarui Password
                     </Button>
