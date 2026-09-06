@@ -9,6 +9,7 @@ interface PropTypes {
   status: 'success' | 'failed';
   userData?: {
     email: string;
+    token: string;
   };
 }
 
@@ -20,6 +21,7 @@ const ActivationPage = (props: PropTypes) => {
   useEffect(() => {
     if (status === 'success' && !isProcessing && userData?.email) {
       setIsProcessing(true);
+      sessionStorage.setItem('pendingAuthToken', userData.token);
       router.push({
         pathname: '/auth/student-data',
         query: { email: userData.email }
@@ -52,15 +54,16 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
     const response = await authServices.activation({ token });
     
     if (response?.data?.data?.user) {
-      const { user } = response.data.data;
-      
-      if (user.email) {
-        
+      const { user, token: authToken } = response.data.data;
+
+      if (user.email && authToken) {
+
         return {
           props: {
             status: "success",
             userData: {
               email: user.email,
+              token: authToken,
             },
           },
         };

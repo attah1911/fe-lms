@@ -105,13 +105,14 @@ export const useLogin = (): UseLoginReturn => {
 
         if (user.role === 'murid') {
           try {
-            await authServices.getStudentData(user.email);
+            await authServices.getStudentData(token);
           } catch (error: any) {
             if (error.response?.status === 404) {
               toast.info("Data Murid Belum Lengkap", {
                 description: "Silakan lengkapi data murid Anda",
               });
-              
+
+              sessionStorage.setItem('pendingAuthToken', token);
               router.push({
                 pathname: '/auth/student-data',
                 query: { email: user.email }

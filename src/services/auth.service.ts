@@ -19,10 +19,14 @@ const authServices = {
   getProfile: () => instance.get(`${endpoint.AUTH}/me`),
   updateProfile: (payload: IProfileUpdate) =>
     instance.put(`${endpoint.AUTH}/me`, payload),
-  submitStudentData: (payload: IStudentData & { email: string }) =>
-    instance.post(`${endpoint.AUTH}/submit-student-data`, payload),
-  getStudentData: (email: string) =>
-    instance.get(`${endpoint.AUTH}/student-data`, { params: { email } }),
+  submitStudentData: (payload: IStudentData, token: string) =>
+    instance.post(`${endpoint.AUTH}/submit-student-data`, payload, {
+      headers: { Authorization: `Bearer ${token}` },
+    }),
+  getStudentData: (token: string) =>
+    instance.get(`${endpoint.AUTH}/student-data`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }),
   changePassword: (payload: ChangePasswordPayload) =>
     instance.post(`${endpoint.AUTH}/change-password`, payload),
 };

@@ -15,11 +15,10 @@ const StudentDataForm: React.FC<Props> = ({ email }) => {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [formData, setFormData] = useState<IStudentData & { email: string }>({
+  const [formData, setFormData] = useState<IStudentData>({
     nis: "",
     kelas: "",
     noTelp: "",
-    email
   });
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
@@ -28,6 +27,11 @@ const StudentDataForm: React.FC<Props> = ({ email }) => {
     setError(null);
 
     try {
+      const token = sessionStorage.getItem('pendingAuthToken');
+      if (!token) {
+        throw new Error("Sesi telah berakhir. Silakan login kembali.");
+      }
+
       if (!formData.nis.trim()) {
         throw new Error("NIS harus diisi");
       }
@@ -46,8 +50,9 @@ const StudentDataForm: React.FC<Props> = ({ email }) => {
         throw new Error("Nomor Telepon hanya boleh berisi angka");
       }
 
-      await authServices.submitStudentData(formData);
-      
+      await authServices.submitStudentData(formData, token);
+      sessionStorage.removeItem('pendingAuthToken');
+
       toast.success("Data murid berhasil ditambahkan", {
         description: "Silakan login menggunakan akun Anda",
       });
@@ -97,6 +102,7 @@ const StudentDataForm: React.FC<Props> = ({ email }) => {
           <p className="text-blue-100">
             Silakan lengkapi data diri Anda untuk melanjutkan
           </p>
+          {email && <p className="text-blue-100 text-sm mt-1">{email}</p>}
         </div>
 
         <Card className="w-full bg-white shadow-xl">
